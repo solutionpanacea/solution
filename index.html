@@ -10,7 +10,7 @@
     import { getFirestore, collection, addDoc, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
-    // ✅ Corrected Firebase configuration
+    // ✅ Firebase configuration
     const firebaseConfig = {
       apiKey: "AIzaSyD6hPxdAYnaT92xoqfKOnGZhV1AbzBHwyI",
       authDomain: "solution-a0595.firebaseapp.com",
@@ -33,32 +33,54 @@
       });
     };
 
-    // ✅ Send OTP (works with Firebase test numbers)
+    // ✅ Send OTP (real-number login)
     window.sendOTP = async function() {
       const phoneNumber = document.getElementById("phone").value.trim();
-      if (!phoneNumber) { alert("Enter phone number"); return; }
-      const appVerifier = window.recaptchaVerifier;
-      signInWithPhoneNumber(auth, phoneNumber, appVerifier)
-        .then((confirmationResult) => {
-          window.confirmationResult = confirmationResult;
-          alert("OTP sent! If using a test number, enter the test OTP.");
-        })
-        .catch((error) => alert(error.message));
+      if (!phoneNumber) {
+        alert("Please enter your phone number with country code, e.g., +91XXXXXXXXXX");
+        return;
+      }
+
+      try {
+        const appVerifier = window.recaptchaVerifier;
+        const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+        window.confirmationResult = confirmationResult;
+        alert("OTP sent! Please check your phone.");
+      } catch (error) {
+        console.error(error);
+        let message = "Failed to send OTP.";
+        if (error.code === "auth/invalid-phone-number") message = "Invalid phone number format.";
+        else if (error.code === "auth/too-many-requests") message = "SMS quota exceeded. Try again later.";
+        else if (error.message) message = error.message;
+        alert(message);
+      }
     };
 
+    // ✅ Verify OTP
     window.verifyOTP = async function() {
       const code = document.getElementById("otp").value.trim();
-      if (!code) { alert("Enter OTP"); return; }
-      confirmationResult.confirm(code)
-        .then((result) => {
-          currentUser = result.user;
-          document.getElementById("login-section").style.display = "none";
-          document.getElementById("main-section").style.display = "block";
-          loadDoubts();
-        })
-        .catch((error) => alert("Invalid OTP: " + error.message));
+      if (!code) {
+        alert("Please enter the OTP received on your phone.");
+        return;
+      }
+
+      try {
+        const result = await window.confirmationResult.confirm(code);
+        currentUser = result.user;
+        document.getElementById("login-section").style.display = "none";
+        document.getElementById("main-section").style.display = "block";
+        loadDoubts();
+      } catch (error) {
+        console.error(error);
+        let message = "Failed to verify OTP.";
+        if (error.code === "auth/invalid-verification-code") message = "Invalid OTP entered.";
+        else if (error.code === "auth/code-expired") message = "OTP expired. Please request a new one.";
+        else if (error.message) message = error.message;
+        alert(message);
+      }
     };
 
+    // ✅ Post a doubt
     window.postDoubt = async function() {
       const subject = document.getElementById("subject").value;
       const title = document.getElementById("title").value.trim();
@@ -93,6 +115,7 @@
       document.getElementById("file").value = "";
     };
 
+    // ✅ Load doubts
     function loadDoubts() {
       const q = query(collection(db, "doubts"), orderBy("created", "desc"));
       onSnapshot(q, (snapshot) => {
