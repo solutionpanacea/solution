@@ -1,431 +1,160 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Solution! — Student Q&A (single file)</title>
-  <style>
-    :root{--bg:#f6f8fb;--card:#fff;--accent:#0ea5a4}
-    body{font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);margin:0;padding:18px}
-    .container{max-width:1100px;margin:0 auto}
-    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
-    h1{margin:0;font-size:1.15rem}
-    .card{background:var(--card);padding:14px;border-radius:10px;box-shadow:0 6px 18px rgba(12,12,12,0.06);}
-    .grid{display:grid;grid-template-columns: minmax(0,430px) 1fr;gap:14px}
-    input,textarea,select,button{font:inherit;padding:10px;border-radius:8px;border:1px solid #e6e9ee}
-    button{background:var(--accent);color:white;border:none;cursor:pointer}
-    .qa-list{max-height:65vh;overflow:auto}
-    .qa-item{padding:10px;border-radius:8px;border:1px dashed #eef;margin-bottom:8px;cursor:pointer}
-    .small{font-size:0.9rem;color:#555}
-    .muted{color:#777;font-size:0.85rem}
-    .flex{display:flex;gap:8px;align-items:center}
-    .hidden{display:none}
-    .right-head{display:flex;gap:8px;align-items:center}
-    .file-link{display:inline-block;margin-top:6px}
-    .chat-box{height:220px;overflow:auto;border:1px solid #eee;padding:8px;border-radius:8px;background:#fafafa}
-  </style>
-</head>
-<body>
-  <div class="container">
-    <header>
-      <h1>Solution! — Student Q&A</h1>
-      <div class="right-head">
-        <div id="userInfo" class="muted">Not signed in</div>
-        <button id="signOutBtn" class="hidden">Sign out</button>
-      </div>
-    </header>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Solution! - Student Doubt Solver</title>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
-    <div class="grid">
-      <div>
-        <div class="card" id="authCard">
-          <h3>Sign in / Register</h3>
-          <div id="authTabs" class="flex">
-            <button id="tabPhone">Phone (OTP)</button>
-            <button id="tabEmail">Email</button>
-          </div>
-
-          <div id="phoneBox" class="mt">
-            <p class="small">Phone login requires adding your domain to Firebase Console (Authorized domains).</p>
-            <input id="phoneInput" placeholder="+91xxxxxxxxxx" />
-            <div id="recaptcha-container"></div>
-            <div class="flex" style="margin-top:8px">
-              <button id="sendOtp">Send OTP</button>
-              <input id="otpInput" placeholder="Enter OTP" style="width:160px" />
-              <button id="verifyOtp">Verify</button>
-            </div>
-            <div id="phoneMsg" class="muted small"></div>
-          </div>
-
-          <div id="emailBox" class="hidden">
-            <input id="emailInput" placeholder="Email" />
-            <input id="passInput" placeholder="Password" type="password" />
-            <div class="flex" style="margin-top:8px">
-              <button id="emailSignUp">Sign up</button>
-              <button id="emailSignIn">Sign in</button>
-            </div>
-            <div id="emailMsg" class="muted small"></div>
-          </div>
-        </div>
-
-        <div class="card" style="margin-top:12px">
-          <h3>Post a Doubt / Question</h3>
-          <div id="postForm" class="hidden">
-            <textarea id="qText" rows="4" placeholder="Write your doubt/question here..."></textarea>
-            <div style="margin-top:8px">
-              <input type="file" id="qFile" />
-            </div>
-            <div style="margin-top:8px" class="flex">
-              <button id="postQ">Post Question</button>
-              <span id="postMsg" class="muted small"></span>
-            </div>
-          </div>
-          <div id="needLoginMsg" class="muted small">Please sign in to post or answer questions.</div>
-        </div>
-
-        <div class="card" style="margin-top:12px">
-          <h3>Global Chat</h3>
-          <div class="chat-box" id="globalChatBox"></div>
-          <div class="flex" style="margin-top:8px">
-            <input id="chatInput" placeholder="Message..." />
-            <button id="sendChat">Send</button>
-          </div>
-        </div>
-
-        <div class="card" style="margin-top:12px">
-          <h3>Firestore / Storage Setup Notes</h3>
-          <p class="muted small">After pasting your Firebase config below, enable <b>Phone</b> and/or <b>Email</b> sign-in methods in Firebase Console. Add your GitHub Pages domain (<code>solutionpanacea.github.io</code>) to Authorized Domains. Set Firestore and Storage rules as shown in the README section inside the code.</p>
-        </div>
-      </div>
-
-      <div>
-        <div class="card">
-          <h3>Posted Doubts</h3>
-          <div class="qa-list" id="questionsList">Loading…</div>
-        </div>
-
-        <div class="card" style="margin-top:12px" id="questionDetailCard" class="hidden">
-          <h3 id="detailTitle">Select a question</h3>
-          <div id="detailBody" class="muted">Click a question on the left to see details, files, and answers.</div>
-          <div id="answersSection" class="hidden" style="margin-top:12px">
-            <h4>Answers</h4>
-            <div id="answersList"></div>
-            <div style="margin-top:8px" id="answerForm">
-              <textarea id="answerText" rows="3" placeholder="Write an answer..."></textarea>
-              <div style="margin-top:8px"><input type="file" id="answerFile" /></div>
-              <div style="margin-top:8px" class="flex"><button id="postAnswer">Post Answer</button><span id="answerMsg" class="muted small"></span></div>
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- Firebase config: REPLACE with your project's config -->
-    <script>
-    // ========== IMPORTANT: Replace the firebaseConfig object below with your project's config from Firebase Console ===========
-    const FIREBASE_CONFIG = {
-      apiKey: "REPLACE_API_KEY",
-      authDomain: "REPLACE_AUTH_DOMAIN",
-      projectId: "REPLACE_PROJECT_ID",
-      storageBucket: "REPLACE_STORAGE_BUCKET",
-      messagingSenderId: "REPLACE_MESSAGING_SENDER_ID",
-      appId: "REPLACE_APP_ID"
+    const firebaseConfig = {
+      apiKey: "AIzaSyD6hPxdAYnaT92xoqfKOnGZhV1AbzBHwyI",
+      authDomain: "solution-a0595.firebaseapp.com",
+      projectId: "solution-a0595",
+      storageBucket: "solution-a0595.appspot.com",
+      messagingSenderId: "38814647745",
+      appId: "1:38814647745:web:01e1f57baf2ae2a5265b40"
     };
-    // ======================================================================================================================
-    </script>
 
-    <script type="module">
-    // Modular SDK imports
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
-    import { getAuth, RecaptchaVerifier, signInWithPhoneNumber, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js';
-    import { getFirestore, collection, addDoc, doc, onSnapshot, query, orderBy, getDoc, serverTimestamp, updateDoc } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
-    import { getStorage, ref as sRef, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js';
-
-    // init
-    const app = initializeApp(FIREBASE_CONFIG);
+    const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
     const storage = getStorage(app);
+    let currentUser = null;
 
-    // UI refs
-    const phoneBox = document.getElementById('phoneBox');
-    const emailBox = document.getElementById('emailBox');
-    const tabPhone = document.getElementById('tabPhone');
-    const tabEmail = document.getElementById('tabEmail');
-    const phoneInput = document.getElementById('phoneInput');
-    const sendOtpBtn = document.getElementById('sendOtp');
-    const verifyOtpBtn = document.getElementById('verifyOtp');
-    const otpInput = document.getElementById('otpInput');
-    const phoneMsg = document.getElementById('phoneMsg');
-    const emailInput = document.getElementById('emailInput');
-    const passInput = document.getElementById('passInput');
-    const emailSignIn = document.getElementById('emailSignIn');
-    const emailSignUp = document.getElementById('emailSignUp');
-    const emailMsg = document.getElementById('emailMsg');
-    const userInfo = document.getElementById('userInfo');
-    const signOutBtn = document.getElementById('signOutBtn');
-
-    const postForm = document.getElementById('postForm');
-    const needLoginMsg = document.getElementById('needLoginMsg');
-    const postQBtn = document.getElementById('postQ');
-    const qText = document.getElementById('qText');
-    const qFile = document.getElementById('qFile');
-    const postMsg = document.getElementById('postMsg');
-
-    const questionsList = document.getElementById('questionsList');
-    const questionDetailCard = document.getElementById('questionDetailCard');
-    const detailTitle = document.getElementById('detailTitle');
-    const detailBody = document.getElementById('detailBody');
-    const answersSection = document.getElementById('answersSection');
-    const answersList = document.getElementById('answersList');
-    const answerText = document.getElementById('answerText');
-    const answerFile = document.getElementById('answerFile');
-    const postAnswerBtn = document.getElementById('postAnswer');
-    const answerMsg = document.getElementById('answerMsg');
-
-    const globalChatBox = document.getElementById('globalChatBox');
-    const chatInput = document.getElementById('chatInput');
-    const sendChatBtn = document.getElementById('sendChat');
-
-    // tab handling
-    tabPhone.onclick = () => { phoneBox.classList.remove('hidden'); emailBox.classList.add('hidden'); }
-    tabEmail.onclick = () => { emailBox.classList.remove('hidden'); phoneBox.classList.add('hidden'); }
-
-    // recaptcha
-    let recaptchaVerifier;
-    try{
-      recaptchaVerifier = new RecaptchaVerifier('recaptcha-container', {size:'invisible'}, auth);
-    }catch(e){ console.warn('ReCAPTCHA init failed — make sure auth domain is authorized', e); }
-
-    let confirmationResult = null;
-
-    sendOtpBtn.onclick = async () => {
-      phoneMsg.textContent = '';
-      const phone = phoneInput.value.trim();
-      if(!phone){ phoneMsg.textContent = 'Enter phone with country code (e.g. +9198xxxx...)'; return; }
-      try{
-        confirmationResult = await signInWithPhoneNumber(auth, phone, recaptchaVerifier);
-        phoneMsg.textContent = 'OTP sent. Enter it and click Verify.';
-      }catch(err){ console.error(err); phoneMsg.textContent = 'Failed to send OTP: ' + err.message; }
-    }
-
-    verifyOtpBtn.onclick = async () => {
-      phoneMsg.textContent = '';
-      const code = otpInput.value.trim();
-      if(!confirmationResult){ phoneMsg.textContent = 'Send OTP first.'; return; }
-      try{
-        const result = await confirmationResult.confirm(code);
-        phoneMsg.textContent = 'Phone verified!';
-        // user state change will be handled by onAuthStateChanged
-      }catch(err){ console.error(err); phoneMsg.textContent = 'OTP verify failed: '+err.message; }
-    }
-
-    emailSignUp.onclick = async () => {
-      const email = emailInput.value.trim();
-      const pass = passInput.value;
-      emailMsg.textContent = '';
-      try{
-        await createUserWithEmailAndPassword(auth, email, pass);
-        emailMsg.textContent = 'Signed up and logged in.';
-      }catch(err){ console.error(err); emailMsg.textContent = err.message; }
-    }
-    emailSignIn.onclick = async () => {
-      const email = emailInput.value.trim();
-      const pass = passInput.value;
-      emailMsg.textContent = '';
-      try{
-        await signInWithEmailAndPassword(auth, email, pass);
-        emailMsg.textContent = 'Signed in.';
-      }catch(err){ console.error(err); emailMsg.textContent = err.message; }
-    }
-
-    signOutBtn.onclick = async () => { await signOut(auth); }
-
-    // Auth state
-    import('https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js').then(m => {
-      const { onAuthStateChanged } = m;
-      onAuthStateChanged(auth, user => {
-        if(user){
-          userInfo.textContent = (user.phoneNumber || user.email || 'User') + ' (' + user.uid.substring(0,6) + ')';
-          signOutBtn.classList.remove('hidden');
-          postForm.classList.remove('hidden');
-          needLoginMsg.classList.add('hidden');
-        }else{
-          userInfo.textContent = 'Not signed in';
-          signOutBtn.classList.add('hidden');
-          postForm.classList.add('hidden');
-          needLoginMsg.classList.remove('hidden');
-        }
+    window.onload = function () {
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-container", {
+        size: "normal",
+        callback: () => console.log("Recaptcha verified")
       });
-    });
+    };
 
-    // Post question
-    postQBtn.onclick = async () => {
-      postMsg.textContent = '';
-      const text = qText.value.trim();
-      if(!text){ postMsg.textContent = 'Write a question first.'; return; }
-      const user = auth.currentUser;
-      if(!user){ postMsg.textContent = 'Sign in required.'; return; }
-      postQBtn.disabled = true;
-      try{
-        let fileURL = null;
-        if(qFile.files.length){
-          const f = qFile.files[0];
-          const storageRef = sRef(storage, `questions/${Date.now()}_${f.name}`);
-          await uploadBytes(storageRef, f);
-          fileURL = await getDownloadURL(storageRef);
-        }
-        await addDoc(collection(db,'questions'),{
-          uid: user.uid,
-          author: user.phoneNumber || user.email || 'Anonymous',
-          text,
-          fileURL: fileURL || null,
-          createdAt: serverTimestamp()
-        });
-        qText.value=''; qFile.value=''; postMsg.textContent='Posted.';
-      }catch(err){ console.error(err); postMsg.textContent = 'Post failed: '+err.message; }
-      postQBtn.disabled = false;
-    }
+    window.sendOTP = async function() {
+      const phoneNumber = document.getElementById("phone").value.trim();
+      if (!phoneNumber) { alert("Enter phone number"); return; }
+      const appVerifier = window.recaptchaVerifier;
+      signInWithPhoneNumber(auth, phoneNumber, appVerifier)
+        .then((confirmationResult) => {
+          window.confirmationResult = confirmationResult;
+          alert("OTP sent!");
+        })
+        .catch((error) => alert(error.message));
+    };
 
-    // Listen to questions list
-    const qQuery = query(collection(db, 'questions'), orderBy('createdAt','desc'));
-    onSnapshot(qQuery, snapshot => {
-      questionsList.innerHTML = '';
-      snapshot.forEach(docu => {
-        const d = docu.data();
-        const el = document.createElement('div');
-        el.className = 'qa-item';
-        el.innerHTML = `<strong>${d.author || 'Anon'}</strong> <div class="muted small">${d.text ? (d.text.length>120?d.text.slice(0,120)+'...':d.text) : ''}</div>` + (d.fileURL?`<div class="file-link"><small>📎 file attached</small></div>`:'');
-        el.onclick = () => showQuestion(docu.id);
-        questionsList.appendChild(el);
-      });
-    });
+    window.verifyOTP = async function() {
+      const code = document.getElementById("otp").value.trim();
+      if (!code) { alert("Enter OTP"); return; }
+      confirmationResult.confirm(code)
+        .then((result) => {
+          currentUser = result.user;
+          document.getElementById("login-section").style.display = "none";
+          document.getElementById("main-section").style.display = "block";
+          loadDoubts();
+        })
+        .catch((error) => alert("Invalid OTP: " + error.message));
+    };
 
-    // Show question detail + answers listener
-    let currentAnswersUnsub = null;
-    async function showQuestion(id){
-      try{
-        const dref = doc(db,'questions',id);
-        const dsnap = await getDoc(dref);
-        if(!dsnap.exists()){ detailTitle.textContent = 'Not found'; detailBody.textContent=''; return; }
-        const data = dsnap.data();
-        detailTitle.textContent = data.author || 'Author';
-        detailBody.innerHTML = `<div class="muted">${data.text || ''}</div>` + (data.fileURL?`<div class="file-link"><a href="${data.fileURL}" target="_blank">View attached file</a></div>`:'');
-        answersSection.classList.remove('hidden');
-        questionDetailCard.classList.remove('hidden');
-        answersList.innerHTML = 'Loading answers...';
+    window.postDoubt = async function() {
+      const subject = document.getElementById("subject").value;
+      const title = document.getElementById("title").value.trim();
+      const details = document.getElementById("details").value.trim();
+      const file = document.getElementById("file").files[0];
+      let fileURL = "";
 
-        // detach old
-        if(currentAnswersUnsub) currentAnswersUnsub();
+      if (!title || !details) { alert("Fill title and details"); return; }
 
-        // listen to answers subcollection
-        const answersCol = collection(db, 'questions', id, 'answers');
-        const q = query(answersCol, orderBy('createdAt','asc'));
-        currentAnswersUnsub = onSnapshot(q, snap => {
-          answersList.innerHTML = '';
-          snap.forEach(docA => {
-            const a = docA.data();
-            const el = document.createElement('div');
-            el.className='card';
-            el.style.marginBottom='8px';
-            el.innerHTML = `<div><strong>${a.author || 'Anon'}</strong> <span class="muted small">${a.createdAt? new Date(a.createdAt.seconds*1000).toLocaleString() : ''}</span></div><div class="muted">${a.text || ''}</div>` + (a.fileURL?`<div class="file-link"><a href="${a.fileURL}" target="_blank">View file</a></div>`:'');
-            answersList.appendChild(el);
-          });
-        });
+      if (file) {
+        if (file.size > 10 * 1024 * 1024) { alert("File too large (max 10MB)"); return; }
+        const allowedTypes = ["image/jpeg","image/png","application/pdf"];
+        if (!allowedTypes.includes(file.type)) { alert("Only JPG, PNG, PDF allowed"); return; }
 
-        // prepare posting answer
-        postAnswerBtn.onclick = async () => {
-          answerMsg.textContent='';
-          const user = auth.currentUser;
-          if(!user){ answerMsg.textContent='Sign in to answer.'; return; }
-          if(!answerText.value.trim()){ answerMsg.textContent='Write answer.'; return; }
-          postAnswerBtn.disabled = true;
-          try{
-            let fileURL=null;
-            if(answerFile.files.length){
-              const f = answerFile.files[0];
-              const sref = sRef(storage, `answers/${Date.now()}_${f.name}`);
-              await uploadBytes(sref, f);
-              fileURL = await getDownloadURL(sref);
-            }
-            await addDoc(collection(db,'questions',id,'answers'),{
-              uid: user.uid,
-              author: user.phoneNumber || user.email || 'Anonymous',
-              text: answerText.value.trim(),
-              fileURL: fileURL || null,
-              createdAt: serverTimestamp()
-            });
-            answerText.value=''; answerFile.value=''; answerMsg.textContent='Answer posted.';
-          }catch(err){ console.error(err); answerMsg.textContent = 'Failed: '+err.message; }
-          postAnswerBtn.disabled = false;
-        }
-
-      }catch(err){ console.error(err); detailTitle.textContent='Error'; detailBody.textContent = err.message; }
-    }
-
-    // Global chat
-    const chatQuery = query(collection(db,'globalChat'), orderBy('createdAt','asc'));
-    onSnapshot(chatQuery, snap => {
-      globalChatBox.innerHTML = '';
-      snap.forEach(dm => {
-        const m = dm.data();
-        const el = document.createElement('div');
-        el.innerHTML = `<div class="small"><strong>${m.author||'Anon'}</strong> <span class="muted small">${m.createdAt? new Date(m.createdAt.seconds*1000).toLocaleString() : ''}</span></div><div class="muted">${m.text}</div>`;
-        globalChatBox.appendChild(el);
-      });
-      globalChatBox.scrollTop = globalChatBox.scrollHeight;
-    });
-
-    sendChatBtn.onclick = async () => {
-      const text = chatInput.value.trim();
-      if(!text) return;
-      const user = auth.currentUser;
-      try{
-        await addDoc(collection(db,'globalChat'),{ text, author: user? (user.phoneNumber||user.email||'Anon') : 'Anonymous', createdAt: serverTimestamp() });
-        chatInput.value='';
-      }catch(err){ console.error(err); }
-    }
-
-    // =========== Helpful: Firestore & Storage rules to copy into Firebase Console (security) =============
-    // Firestore (start locked - allow authenticated read/write for typical student app):
-    /*
-    rules_version = '2';
-    service cloud.firestore {
-      match /databases/{database}/documents {
-        // allow read to anyone, but write only for authenticated users
-        match /questions/{q} {
-          allow read: if true;
-          allow create: if request.auth != null;
-          allow update, delete: if request.auth != null && request.auth.uid == resource.data.uid;
-          match /answers/{a} {
-            allow read: if true;
-            allow create: if request.auth != null;
-            allow update, delete: if request.auth != null && request.auth.uid == resource.data.uid;
-          }
-        }
-        match /globalChat/{m} {
-          allow read: if true;
-          allow create: if request.auth != null;
-        }
+        const storageRef = ref(storage, "doubts/" + Date.now() + "_" + file.name);
+        await uploadBytes(storageRef, file);
+        fileURL = await getDownloadURL(storageRef);
       }
-    }
-    */
 
-    // Storage rules (only authenticated can upload, files readable by anyone):
-    /*
-    rules_version = '2';
-    service firebase.storage {
-      match /b/{bucket}/o {
-        match /{allPaths=**} {
-          allow read: if true;
-          allow write: if request.auth != null;
-        }
-      }
-    }
-    */
+      await addDoc(collection(db, "doubts"), {
+        subject,
+        title,
+        details,
+        fileURL,
+        user: currentUser.phoneNumber,
+        created: new Date()
+      });
 
-    // =========== End of file ==========
-    </script>
+      alert("Doubt posted!");
+      document.getElementById("title").value = "";
+      document.getElementById("details").value = "";
+      document.getElementById("file").value = "";
+    };
+
+    function loadDoubts() {
+      const q = query(collection(db, "doubts"), orderBy("created", "desc"));
+      onSnapshot(q, (snapshot) => {
+        const list = document.getElementById("doubt-list");
+        list.innerHTML = "";
+        snapshot.forEach((doc) => {
+          const d = doc.data();
+          const div = document.createElement("div");
+          div.className = "doubt-card";
+          div.innerHTML = `
+            <h3>${d.subject} - ${d.title}</h3>
+            <p>${d.details}</p>
+            ${d.fileURL ? `<a href="${d.fileURL}" target="_blank">View File</a>` : ""}
+            <p><small>Posted by: ${d.user}</small></p>
+            <button onclick="alert('Chat feature coming soon!')">Open Chat</button>
+          `;
+          list.appendChild(div);
+        });
+      });
+    }
+  </script>
+
+  <style>
+    body { font-family: Arial, sans-serif; background: #f0f4f8; margin: 0; padding: 0; }
+    #login-section, #main-section { padding: 25px; max-width: 600px; margin: auto; }
+    h2 { color: #333; }
+    input, select, textarea { width: 100%; padding: 8px; margin: 5px 0 15px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
+    textarea { height: 100px; }
+    .doubt-card { background: #fff; padding: 15px; margin: 10px 0; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    button { padding: 10px 18px; margin-top: 5px; border: none; border-radius: 5px; background: #007bff; color: white; cursor: pointer; }
+    button:hover { background: #0056b3; }
+    a { color: #007bff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <!-- Login Section -->
+  <div id="login-section">
+    <h2>Login with OTP</h2>
+    <input type="text" id="phone" placeholder="+91XXXXXXXXXX" /><br>
+    <div id="recaptcha-container"></div><br>
+    <button onclick="sendOTP()">Send OTP</button><br>
+    <input type="text" id="otp" placeholder="Enter OTP" /><br>
+    <button onclick="verifyOTP()">Verify OTP</button>
+  </div>
+
+  <!-- Main Section -->
+  <div id="main-section" style="display:none;">
+    <h2>Post a Doubt</h2>
+    <select id="subject">
+      <option>Mathematics</option>
+      <option>Science</option>
+      <option>English</option>
+      <option>Social Studies</option>
+      <option>Computer Science</option>
+      <option>General</option>
+    </select><br>
+    <input type="text" id="title" placeholder="Title" /><br>
+    <textarea id="details" placeholder="Describe the doubt"></textarea><br>
+    <input type="file" id="file" /><br>
+    <button onclick="postDoubt()">Post Doubt</button>
+
+    <h2>All Doubts</h2>
+    <div id="doubt-list"></div>
   </div>
 </body>
 </html>
