@@ -1,281 +1,234 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Solution! - Student Doubt Solver</title>
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+  <meta charset="UTF-8">
+  <title>Solution!</title>
+  <script type="module">
+    // Import Firebase SDKs
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-storage.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyD6hPxdAYnaT92xoqfKOnGZhV1AbzBHwyI",
-  authDomain: "solution-a0595.firebaseapp.com",
-  projectId: "solution-a0595",
-  storageBucket: "solution-a0595.appspot.com",
-  messagingSenderId: "38814647745",
-  appId: "1:38814647745:web:01e1f57baf2ae2a5265b40"
-};
+    // Firebase Config
+    const firebaseConfig = {
+      apiKey: "AIzaSyD6hPxdAYnaT92xoqfKOnGZhV1AbzBHwyI",
+      authDomain: "solution-a0595.firebaseapp.com",
+      projectId: "solution-a0595",
+      storageBucket: "solution-a0595.appspot.com",
+      messagingSenderId: "38814647745",
+      appId: "1:38814647745:web:01e1f57baf2ae2a5265b40"
+    };
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const storage = getStorage(app);
+    // Init Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
 
-let currentUser = null;
-let allDoubts = [];
+    let currentName = "";
 
-// Register
-window.registerUser = async function() {
-  const email = document.getElementById("reg-email").value.trim();
-  const password = document.getElementById("reg-password").value.trim();
-  if (!email || !password) { alert("Enter email and password"); return; }
-  try {
-    await createUserWithEmailAndPassword(auth, email, password);
-    alert("Registration successful! Please log in.");
-    document.getElementById("reg-email").value = "";
-    document.getElementById("reg-password").value = "";
-  } catch (error) { alert("Registration failed: " + error.message); }
-};
+    // Signup
+    async function signup() {
+      const name = document.getElementById("signup-name").value;
+      const email = document.getElementById("signup-email").value;
+      const pass = document.getElementById("signup-pass").value;
+      try {
+        await createUserWithEmailAndPassword(auth, email, pass);
+        currentName = name;
+        document.getElementById("auth-section").style.display = "none";
+        document.getElementById("main-section").style.display = "block";
+        loadDoubts();
+        loadChat();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
 
-// Login
-window.loginUser = async function() {
-  const email = document.getElementById("login-email").value.trim();
-  const password = document.getElementById("login-password").value.trim();
-  if (!email || !password) { alert("Enter email and password"); return; }
-  try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    currentUser = userCredential.user;
-    document.getElementById("login-section").style.display = "none";
-    document.getElementById("main-section").style.display = "block";
-    loadDoubts();
-    loadSavedDoubts();
-  } catch (error) { alert("Login failed: " + error.message); }
-};
+    // Login
+    async function login() {
+      const email = document.getElementById("login-email").value;
+      const pass = document.getElementById("login-pass").value;
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+        currentName = email.split("@")[0]; // default to email prefix if no name
+        document.getElementById("auth-section").style.display = "none";
+        document.getElementById("main-section").style.display = "block";
+        loadDoubts();
+        loadChat();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
 
-// Logout
-window.logoutUser = async function() {
-  await signOut(auth);
-  currentUser = null;
-  document.getElementById("main-section").style.display = "none";
-  document.getElementById("login-section").style.display = "block";
-};
+    // Post doubt
+    async function postDoubt() {
+      const subject = document.getElementById("subject").value;
+      const text = document.getElementById("doubt").value;
+      if (!text) return;
+      try {
+        await addDoc(collection(db, "doubts"), {
+          name: currentName,
+          subject,
+          text,
+          created: serverTimestamp()
+        });
+        document.getElementById("doubt").value = "";
+      } catch (e) {
+        alert("Error posting doubt: " + e.message);
+      }
+    }
 
-// Post doubt with optional file
-window.postDoubt = async function() {
-  const subject = document.getElementById("subject").value;
-  const title = document.getElementById("title").value.trim();
-  const details = document.getElementById("details").value.trim();
-  const file = document.getElementById("file").files[0];
-  let fileURL = "";
+    // Load doubts
+    function loadDoubts() {
+      const q = query(collection(db, "doubts"), orderBy("created", "desc"));
+      onSnapshot(q, (snapshot) => {
+        const list = document.getElementById("doubts-list");
+        list.innerHTML = "";
+        snapshot.forEach((doc) => {
+          const d = doc.data();
+          const li = document.createElement("li");
+          li.innerHTML = `<b>${d.subject}</b>: ${d.text} <br><small>Posted by ${d.name}</small>`;
+          list.appendChild(li);
+        });
+      });
+    }
 
-  if (!title || !details) { alert("Fill title and details"); return; }
+    // Send chat
+    async function sendChat() {
+      const msg = document.getElementById("chat-msg").value.trim();
+      const fileInput = document.getElementById("chat-file");
+      const file = fileInput.files[0];
+      let fileURL = "";
+      let fileName = "";
 
-  if (file) {
-    if (file.size > 10*1024*1024) { alert("File too large (max 10MB)"); return; }
-    const allowedTypes = ["image/jpeg","image/png","application/pdf"];
-    if (!allowedTypes.includes(file.type)) { alert("Only JPG, PNG, PDF allowed"); return; }
-    const storageRef = ref(storage, "doubts/" + Date.now() + "_" + file.name);
-    await uploadBytes(storageRef, file);
-    fileURL = await getDownloadURL(storageRef);
-  }
+      try {
+        if (file) {
+          const storageRef = ref(storage, "chat/" + Date.now() + "_" + file.name);
+          const snapshot = await uploadBytes(storageRef, file);
+          fileURL = await getDownloadURL(snapshot.ref);
+          fileName = file.name;
+        }
 
-  await addDoc(collection(db, "doubts"), { subject, title, details, fileURL, user: currentUser.email, solved: false, created: new Date() });
+        if (msg || fileURL) {
+          await addDoc(collection(db, "chat"), {
+            name: currentName,
+            message: msg,
+            fileURL,
+            fileName,
+            created: serverTimestamp()
+          });
+        }
 
-  document.getElementById("title").value = "";
-  document.getElementById("details").value = "";
-  document.getElementById("file").value = "";
-};
+        document.getElementById("chat-msg").value = "";
+        fileInput.value = null;
+      } catch (e) {
+        alert("Error sending chat: " + e.message);
+      }
+    }
 
-// Load all doubts
-function loadDoubts() {
-  const q = query(collection(db, "doubts"), orderBy("created","desc"));
-  onSnapshot(q, snapshot => {
-    allDoubts = [];
-    snapshot.forEach(docSnap => {
-      const d = docSnap.data();
-      d.id = docSnap.id;
-      allDoubts.push(d);
-    });
-    displayDoubts(allDoubts);
-  });
-}
+    // Load chat
+    function loadChat() {
+      const q = query(collection(db, "chat"), orderBy("created", "asc"));
+      onSnapshot(q, (snapshot) => {
+        const chatBox = document.getElementById("chat-box");
+        chatBox.innerHTML = "";
+        snapshot.forEach((doc) => {
+          const c = doc.data();
+          const div = document.createElement("div");
+          div.className = "chat-msg";
 
-// Display doubts
-function displayDoubts(doubtsArray) {
-  const list = document.getElementById("doubt-list");
-  list.innerHTML = "";
-  doubtsArray.forEach(d => {
-    const div = document.createElement("div");
-    div.className = "doubt-card";
-    div.innerHTML = `
-      <h3>${d.subject} - ${d.title}</h3>
-      <p>${d.details}</p>
-      ${d.fileURL ? `<a href="${d.fileURL}" target="_blank">View File</a>` : ""}
-      <p><small>Posted by: ${d.user}</small></p>
-      ${!d.solved ? `<button onclick="markSolved('${d.id}')">Mark as Solved</button>` : ""}
-      ${d.user!==currentUser.email ? `<button onclick="saveDoubt('${d.id}')">Save</button>` : ""}
-      <div id="chat-${d.id}" style="margin-top:10px;"></div>
-    `;
-    list.appendChild(div);
-    if(d.solved) loadChat(d.id);
-  });
-}
+          // File rendering
+          let fileContent = "";
+          if (c.fileURL) {
+            const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(c.fileName);
+            if (isImage) {
+              fileContent = `
+                <br>
+                <a href="${c.fileURL}" target="_blank">
+                  <img src="${c.fileURL}" alt="${c.fileName}" 
+                       style="max-width:150px; border-radius:6px; margin-top:5px; cursor:pointer;">
+                </a>
+              `;
+            } else {
+              fileContent = `<br><a href="${c.fileURL}" target="_blank">📎 ${c.fileName || "Download File"}</a>`;
+            }
+          }
 
-// Mark as solved
-window.markSolved = async function(doubtId) {
-  const doubtRef = doc(db,"doubts",doubtId);
-  await updateDoc(doubtRef,{solved:true});
-  loadDoubts();
-}
+          div.innerHTML = `
+            <b>${c.name}:</b> ${c.message || ""}
+            ${fileContent}
+          `;
+          chatBox.appendChild(div);
+        });
+        chatBox.scrollTop = chatBox.scrollHeight;
+      });
+    }
 
-// Chat functions
-function loadChat(doubtId) {
-  const chatContainer = document.getElementById("chat-" + doubtId);
-  chatContainer.innerHTML = `
-    <div id="messages-${doubtId}" style="max-height:200px; overflow-y:auto; border:1px solid #ccc; padding:5px; margin-bottom:5px;"></div>
-    <input type="text" id="chat-input-${doubtId}" placeholder="Type a message..." />
-    <input type="file" id="chat-file-${doubtId}" />
-    <button onclick="sendChatMessage('${doubtId}')">Send</button>
-  `;
-  const messagesRef = collection(db,"doubts",doubtId,"chat");
-  const q = query(messagesRef, orderBy("created","asc"));
-  onSnapshot(q, snapshot => {
-    const msgDiv = document.getElementById("messages-"+doubtId);
-    msgDiv.innerHTML = "";
-    snapshot.forEach(docSnap=>{
-      const m=docSnap.data();
-      const div = document.createElement("div");
-      div.innerHTML = `<strong>${m.user}:</strong> ${m.text||""} ${m.fileURL?`<a href="${m.fileURL}" target="_blank">[File]</a>`:""}`;
-      msgDiv.appendChild(div);
-    });
-    msgDiv.scrollTop = msgDiv.scrollHeight;
-  });
-}
+    // Expose functions
+    window.signup = signup;
+    window.login = login;
+    window.postDoubt = postDoubt;
+    window.sendChat = sendChat;
+  </script>
 
-window.sendChatMessage = async function(doubtId) {
-  const textInput = document.getElementById("chat-input-" + doubtId);
-  const fileInput = document.getElementById("chat-file-" + doubtId);
-  const text = textInput.value.trim();
-  let fileURL = "";
-  const file = fileInput.files[0];
-  if(file){
-    const storageRef = ref(storage, `chatFiles/${Date.now()}_${file.name}`);
-    await uploadBytes(storageRef,file);
-    fileURL = await getDownloadURL(storageRef);
-  }
-  if(!text && !fileURL) return;
-  const chatRef = collection(db,"doubts",doubtId,"chat");
-  await addDoc(chatRef,{user:currentUser.email,text:text||"",fileURL:fileURL||"",created:new Date()});
-  textInput.value="";
-  fileInput.value="";
-}
-
-// Filter by subject
-window.filterDoubts = function(){
-  const selected = document.getElementById("filter-subject").value;
-  if(selected==="All") displayDoubts(allDoubts);
-  else displayDoubts(allDoubts.filter(d=>d.subject===selected));
-}
-
-// Save doubts
-window.saveDoubt = async function(doubtId){
-  const doubtRef = doc(db,"doubts",doubtId);
-  const docSnap = await getDoc(doubtRef);
-  if(!docSnap.exists()) return;
-  const data = docSnap.data();
-  const userSavedRef = doc(db,"users",currentUser.email,"savedDoubts",doubtId);
-  await setDoc(userSavedRef,data);
-  alert("Doubt saved to your collection!");
-  loadSavedDoubts();
-}
-
-// Load saved doubts
-function loadSavedDoubts(){
-  const savedRef = collection(db,"users",currentUser.email,"savedDoubts");
-  onSnapshot(savedRef, snapshot=>{
-    const list = document.getElementById("saved-list");
-    list.innerHTML="";
-    snapshot.forEach(docSnap=>{
-      const d = docSnap.data();
-      const div = document.createElement("div");
-      div.className="doubt-card";
-      div.innerHTML = `
-        <h3>${d.subject} - ${d.title}</h3>
-        <p>${d.details}</p>
-        ${d.fileURL ? `<a href="${d.fileURL}" target="_blank">View File</a>` : ""}
-        <p><small>Posted by: ${d.user}</small></p>
-      `;
-      list.appendChild(div);
-    });
-  });
-}
-</script>
-
-<style>
-body{font-family:Arial,sans-serif;background:#f0f4f8;margin:0;padding:25px;max-width:800px;margin:auto;}
-h2{color:#333;}
-input,select,textarea{width:100%;padding:8px;margin:5px 0 15px;border-radius:5px;border:1px solid #ccc;box-sizing:border-box;}
-textarea{height:100px;}
-.doubt-card{background:#fff;padding:15px;margin:10px 0;border-radius:10px;box-shadow:0 2px 5px rgba(0,0,0,0.1);}
-button{padding:8px 15px;margin-top:5px;border:none;border-radius:5px;background:#007bff;color:white;cursor:pointer;}
-button:hover{background:#0056b3;}
-a{color:#007bff;text-decoration:none;}
-a:hover{text-decoration:underline;}
-</style>
+  <style>
+    body { font-family: Arial, sans-serif; margin:20px; background:#f5f5f5; }
+    #auth-section, #main-section { max-width:700px; margin:auto; }
+    .box { background:#fff; padding:15px; border-radius:10px; margin-bottom:15px; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
+    input, select, textarea { width:100%; margin:5px 0; padding:8px; border-radius:5px; border:1px solid #ccc; }
+    button { padding:8px 12px; margin-top:8px; border:none; border-radius:5px; background:#007bff; color:#fff; cursor:pointer; }
+    button:hover { background:#0056b3; }
+    #chat-box { height:200px; overflow-y:auto; border:1px solid #ccc; padding:10px; background:#fafafa; border-radius:8px; }
+    .chat-msg { margin-bottom:8px; padding:5px; border-bottom:1px solid #eee; }
+    ul { list-style:none; padding:0; }
+    li { background:#fafafa; margin-bottom:8px; padding:10px; border-radius:6px; }
+  </style>
 </head>
 <body>
+  <!-- Authentication Section -->
+  <div id="auth-section">
+    <div class="box">
+      <h2>Signup</h2>
+      <input id="signup-name" placeholder="Full Name">
+      <input id="signup-email" placeholder="Email">
+      <input id="signup-pass" placeholder="Password" type="password">
+      <button onclick="signup()">Signup</button>
+    </div>
+    <div class="box">
+      <h2>Login</h2>
+      <input id="login-email" placeholder="Email">
+      <input id="login-pass" placeholder="Password" type="password">
+      <button onclick="login()">Login</button>
+    </div>
+  </div>
 
-<!-- Login/Register Section -->
-<div id="login-section">
-  <h2>Register</h2>
-  <input type="email" id="reg-email" placeholder="Email" /><br>
-  <input type="password" id="reg-password" placeholder="Password" /><br>
-  <button onclick="registerUser()">Sign Up</button>
+  <!-- Main Section -->
+  <div id="main-section" style="display:none;">
+    <div class="box">
+      <h2>Post a Doubt</h2>
+      <select id="subject">
+        <option value="Maths">Maths</option>
+        <option value="Science">Science</option>
+        <option value="English">English</option>
+        <option value="GK">General Knowledge</option>
+      </select>
+      <textarea id="doubt" placeholder="Type your doubt here..."></textarea>
+      <button onclick="postDoubt()">Post Doubt</button>
+    </div>
 
-  <h2>Login</h2>
-  <input type="email" id="login-email" placeholder="Email" /><br>
-  <input type="password" id="login-password" placeholder="Password" /><br>
-  <button onclick="loginUser()">Login</button>
-</div>
+    <div class="box">
+      <h2>All Doubts</h2>
+      <ul id="doubts-list"></ul>
+    </div>
 
-<!-- Main Section -->
-<div id="main-section" style="display:none;">
-  <button onclick="logoutUser()">Logout</button>
-
-  <h2>Post a Doubt</h2>
-  <select id="subject">
-    <option>Mathematics</option>
-    <option>Science</option>
-    <option>English</option>
-    <option>Social Studies</option>
-    <option>Computer Science</option>
-    <option>General</option>
-  </select><br>
-  <input type="text" id="title" placeholder="Title" /><br>
-  <textarea id="details" placeholder="Describe the doubt"></textarea><br>
-  <input type="file" id="file" /><br>
-  <button onclick="postDoubt()">Post Doubt</button>
-
-  <h2>Filter by Subject</h2>
-  <select id="filter-subject" onchange="filterDoubts()">
-    <option value="All">All Doubts</option>
-    <option value="Mathematics">Mathematics</option>
-    <option value="Science">Science</option>
-    <option value="English">English</option>
-    <option value="Social Studies">Social Studies</option>
-    <option value="Computer Science">Computer Science</option>
-    <option value="General">General</option>
-  </select>
-
-  <h2>All Doubts</h2>
-  <div id="doubt-list"></div>
-
-  <h2>Saved Doubts</h2>
-  <div id="saved-list"></div>
-</div>
-
+    <div class="box">
+      <h2>Discussion Chat</h2>
+      <div id="chat-box"></div>
+      <input id="chat-msg" placeholder="Type message...">
+      <input type="file" id="chat-file">
+      <button onclick="sendChat()">Send</button>
+    </div>
+  </div>
 </body>
 </html>
