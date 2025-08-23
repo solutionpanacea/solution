@@ -10,6 +10,7 @@
     import { getFirestore, collection, addDoc, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
+    // ✅ Corrected Firebase configuration
     const firebaseConfig = {
       apiKey: "AIzaSyD6hPxdAYnaT92xoqfKOnGZhV1AbzBHwyI",
       authDomain: "solution-a0595.firebaseapp.com",
@@ -32,6 +33,7 @@
       });
     };
 
+    // ✅ Send OTP (works with Firebase test numbers)
     window.sendOTP = async function() {
       const phoneNumber = document.getElementById("phone").value.trim();
       if (!phoneNumber) { alert("Enter phone number"); return; }
@@ -39,7 +41,7 @@
       signInWithPhoneNumber(auth, phoneNumber, appVerifier)
         .then((confirmationResult) => {
           window.confirmationResult = confirmationResult;
-          alert("OTP sent!");
+          alert("OTP sent! If using a test number, enter the test OTP.");
         })
         .catch((error) => alert(error.message));
     };
