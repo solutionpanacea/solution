@@ -7,12 +7,21 @@
 <script src="https://cdn.tailwindcss.com"></script>
 
 <script type="module">
-import { firebaseConfig } from './firebaseConfig.js'; // hidden config
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, updateDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 import Tesseract from "https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js";
+
+// ===== FIREBASE CONFIGURATION =====
+const firebaseConfig = {
+  apiKey: "AIzaSyD6hPxdAYnaT92xoqfKOnGZhV1AbzBHwyI",
+  authDomain: "solution-a0595.firebaseapp.com",
+  projectId: "solution-a0595",
+  storageBucket: "solution-a0595.appspot.com",
+  messagingSenderId: "38814647745",
+  appId: "1:38814647745:web:01e1f57baf2ae2a5265b40"
+};
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -21,12 +30,10 @@ const storage = getStorage(app);
 
 let activeChatId = null;
 
-// Utilities
 function userDisplayName(user){
   return user ? (user.displayName || (user.email||"").split("@")[0]) : "";
 }
 
-// Monitor auth state
 onAuthStateChanged(auth, user=>{
   if(user){
     document.getElementById("login-section").classList.add("hidden");
@@ -39,7 +46,7 @@ onAuthStateChanged(auth, user=>{
   }
 });
 
-// Signup
+// ===== USER FUNCTIONS =====
 window.signup=async function(){
   const name=document.getElementById("signup-name").value.trim();
   const email=document.getElementById("signup-email").value.trim();
@@ -52,7 +59,6 @@ window.signup=async function(){
   }catch(e){alert("Signup error: "+e.message);}
 }
 
-// Login
 window.login=async function(){
   const email=document.getElementById("login-email").value.trim();
   const password=document.getElementById("login-password").value;
@@ -60,10 +66,9 @@ window.login=async function(){
   catch(e){alert("Login error: "+e.message);}
 }
 
-// Logout
 window.logout=function(){signOut(auth);}
 
-// Post Doubt
+// ===== DOUBTS =====
 window.postDoubt=async function(){
   const subject=document.getElementById("subject").value;
   const title=document.getElementById("title").value.trim();
@@ -92,13 +97,11 @@ window.postDoubt=async function(){
   }catch(e){alert("Error: "+e.message);}
 }
 
-// Mark as Solved
 window.markSolved=async function(id){
   try{ await updateDoc(doc(db,"doubts",id),{solved:true}); }
   catch(e){alert("Error: "+e.message);}
 }
 
-// Open Chat
 window.openChat=function(doubtId){
   activeChatId=doubtId;
   document.getElementById("chat-section").classList.remove("hidden");
@@ -107,7 +110,6 @@ window.openChat=function(doubtId){
   document.getElementById("send-btn").onclick=function(){sendMessage(doubtId);}
 }
 
-// Send Chat Message
 window.sendMessage=async function(doubtId){
   const msg=document.getElementById("chat-message").value.trim();
   const file=document.getElementById("chat-file").files[0];
@@ -133,7 +135,6 @@ window.sendMessage=async function(doubtId){
   }catch(e){alert("Error: "+e.message);}
 }
 
-// Load Chat
 function loadChat(doubtId){
   const qChat=query(collection(db,"doubts",doubtId,"chat"),orderBy("created","asc"));
   onSnapshot(qChat,snapshot=>{
@@ -159,7 +160,6 @@ function loadChat(doubtId){
   });
 }
 
-// Load Doubts
 window.loadDoubts=function(){
   const qD=query(collection(db,"doubts"),orderBy("created","desc"));
   onSnapshot(qD,snapshot=>{
@@ -285,17 +285,6 @@ window.initCameraOCR=function(){
     <p class="text-red-500 text-sm mb-2">⚠️ File sending is not working right now. This feature will be available soon.</p>
     <textarea id="details" placeholder="Describe your doubt..." class="w-full p-2 border rounded-md mb-2"></textarea>
     <button class="bg-blue-600 text-white px-4 py-2 rounded-md" onclick="postDoubt()">Post Doubt</button>
-  </div>
-
-  <!-- Subject Tabs -->
-  <div class="flex flex-wrap gap-2 mb-2">
-    <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="all">All</button>
-    <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="Mathematics">Math</button>
-    <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="Science">Science</button>
-    <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="English">English</button>
-    <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="Social Studies">Social</button>
-    <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="Computer Science">CS</button>
-    <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="General">General</button>
   </div>
 
   <!-- Doubts List -->
