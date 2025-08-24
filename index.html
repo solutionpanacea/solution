@@ -6,13 +6,13 @@
 <title>Solution! - Student Doubt Solver</title>
 <script src="https://cdn.tailwindcss.com"></script>
 
-<!-- Firebase SDK (use your firebaseConfig.js for hidden config) -->
 <script type="module">
-import { firebaseConfig } from './firebaseConfig.js'; // hidden
+import { firebaseConfig } from './firebaseConfig.js'; // hidden config
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, updateDoc, doc, serverTimestamp, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, updateDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+import Tesseract from "https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js";
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -21,25 +21,25 @@ const storage = getStorage(app);
 
 let activeChatId = null;
 
-function userDisplayName(user) {
-  if(!user) return "";
-  return user.displayName || (user.email||"").split("@")[0];
+// Utilities
+function userDisplayName(user){
+  return user ? (user.displayName || (user.email||"").split("@")[0]) : "";
 }
 
-onAuthStateChanged(auth,user=>{
+// Monitor auth state
+onAuthStateChanged(auth, user=>{
   if(user){
     document.getElementById("login-section").classList.add("hidden");
     document.getElementById("main-section").classList.remove("hidden");
     document.getElementById("welcome-name").textContent = userDisplayName(user);
     loadDoubts();
-    loadSavedDoubts();
-  }else{
+  } else {
     document.getElementById("login-section").classList.remove("hidden");
     document.getElementById("main-section").classList.add("hidden");
   }
 });
 
-// Auth functions
+// Signup
 window.signup=async function(){
   const name=document.getElementById("signup-name").value.trim();
   const email=document.getElementById("signup-email").value.trim();
@@ -49,16 +49,18 @@ window.signup=async function(){
     const cred=await createUserWithEmailAndPassword(auth,email,password);
     if(name) await updateProfile(cred.user,{displayName:name});
     alert("Signup successful!");
-  }catch(e){alert(e.message);}
+  }catch(e){alert("Signup error: "+e.message);}
 }
 
+// Login
 window.login=async function(){
   const email=document.getElementById("login-email").value.trim();
   const password=document.getElementById("login-password").value;
   try{ await signInWithEmailAndPassword(auth,email,password);} 
-  catch(e){alert(e.message);}
+  catch(e){alert("Login error: "+e.message);}
 }
 
+// Logout
 window.logout=function(){signOut(auth);}
 
 // Post Doubt
@@ -179,7 +181,6 @@ window.loadDoubts=function(){
         <p class="text-xs text-gray-500 mt-1">Posted by: ${d.postedBy||"Student"}</p>
         <div class="mt-2 flex gap-2">
           ${d.solved?`<button class="px-3 py-1 bg-green-500 text-white rounded-md" onclick="openChat('${docSnap.id}')">💬 Open Chat</button>`:`<button class="px-3 py-1 bg-blue-600 text-white rounded-md" onclick="markSolved('${docSnap.id}')">✅ Mark as Solved</button>`}
-          <button class="px-3 py-1 bg-yellow-400 text-white rounded-md" onclick="saveDoubt('${docSnap.id}')">💾 Save</button>
         </div>
       `;
       list.appendChild(card);
@@ -187,50 +188,44 @@ window.loadDoubts=function(){
   });
 }
 
-// Save / Bookmark Doubt
-window.saveDoubt=async function(doubtId){
-  if(!auth.currentUser) return alert("Login required");
-  try{
-    await setDoc(doc(db,"users",auth.currentUser.uid,"savedDoubts",doubtId),{saved:true});
-    alert("Saved!");
-    loadSavedDoubts();
-  }catch(e){alert("Error: "+e.message);}
-}
+// Camera OCR
+window.initCameraOCR=function(){
+  const cameraBtn = document.getElementById("camera-btn");
+  const cameraContainer = document.getElementById("camera-container");
+  const video = document.getElementById("camera-video");
+  const canvas = document.getElementById("camera-canvas");
+  const captureBtn = document.getElementById("capture-btn");
+  const ocrStatus = document.getElementById("ocr-status");
+  const detailsTextarea = document.getElementById("details");
+  let stream;
 
-// Load Saved Doubts
-window.loadSavedDoubts=async function(){
-  if(!auth.currentUser) return;
-  const qSaved=query(collection(db,"users",auth.currentUser.uid,"savedDoubts"));
-  onSnapshot(qSaved,snapshot=>{
-    const list=document.getElementById("saved-list");
-    list.innerHTML="";
-    snapshot.forEach(docSnap=>{
-      const card=document.createElement("div");
-      card.className="p-2 bg-gray-100 rounded-md mb-2 text-sm";
-      card.innerHTML=`Saved doubt ID: ${docSnap.id}`;
-      list.appendChild(card);
-    });
-  });
-}
+  cameraBtn.onclick = async () => {
+    cameraContainer.classList.remove("hidden");
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      video.srcObject = stream;
+    }catch(err){
+      alert("Camera access denied or unavailable: "+err.message);
+    }
+  }
 
-// Subject filter
-window.setSubjectFilter=function(subjectKey){
-  const container=document.getElementById("doubt-list");
-  Array.from(container.children).forEach(card=>{
-    const s=card.getAttribute("data-subject");
-    card.style.display=(subjectKey=="all"||s==subjectKey)?"":"none";
-  });
-  document.querySelectorAll(".tab").forEach(btn=>btn.classList.remove("bg-blue-600","text-white"));
-  const btn=document.querySelector(`.tab[data-key="${subjectKey}"]`);
-  if(btn){ btn.classList.add("bg-blue-600","text-white"); }
+  captureBtn.onclick = () => {
+    if(!stream) return alert("Camera not running");
+    const context = canvas.getContext("2d");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    context.drawImage(video,0,0,canvas.width,canvas.height);
+    ocrStatus.textContent="Processing OCR... please wait...";
+    Tesseract.recognize(canvas,'eng',{logger: m => console.log(m)})
+      .then(({data:{text}})=>{
+        detailsTextarea.value=text.trim();
+        ocrStatus.textContent="Text captured successfully!";
+      }).catch(err=>{ocrStatus.textContent="OCR failed: "+err.message;});
+  }
 }
 </script>
-
-<!-- Tesseract.js for OCR -->
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
-
 </head>
-<body class="bg-gradient-to-r from-indigo-200 via-purple-200 to-pink-200 min-h-screen">
+<body class="bg-gradient-to-r from-indigo-200 via-purple-200 to-pink-200 min-h-screen" onload="initCameraOCR()">
 
 <header class="bg-white/70 backdrop-blur-md flex justify-between items-center p-4 shadow-md sticky top-0 z-50">
   <div class="font-bold text-xl">🎓 Solution! - Student Doubt Solver</div>
@@ -262,67 +257,60 @@ window.setSubjectFilter=function(subjectKey){
 <!-- Main Section -->
 <div id="main-section" class="hidden">
 
-<!-- Post Doubt -->
-<div class="bg-white p-4 rounded-lg shadow-lg mb-4">
-  <h2 class="font-bold text-lg mb-2">Post a Doubt</h2>
-  <!-- Camera OCR -->
-  <div class="mt-2 p-2 border rounded-md bg-gray-100">
-    <button id="camera-btn" class="bg-purple-600 text-white px-3 py-1 rounded-md mb-2">📷 Capture Question from Camera</button>
-    <div id="camera-container" class="hidden flex flex-col items-center gap-2">
-      <video id="camera-video" autoplay playsinline class="w-64 rounded-md shadow-md"></video>
-      <button id="capture-btn" class="bg-green-500 text-white px-3 py-1 rounded-md">Capture</button>
-      <canvas id="camera-canvas" class="hidden"></canvas>
-      <p id="ocr-status" class="text-sm text-gray-700"></p>
+  <!-- Post Doubt -->
+  <div class="bg-white p-4 rounded-lg shadow-lg mb-4">
+    <h2 class="font-bold text-lg mb-2">Post a Doubt</h2>
+    <div class="mt-2 p-2 border rounded-md bg-gray-100">
+      <button id="camera-btn" class="bg-purple-600 text-white px-3 py-1 rounded-md mb-2">📷 Capture Question from Camera</button>
+      <div id="camera-container" class="hidden flex flex-col items-center gap-2">
+        <video id="camera-video" autoplay playsinline class="w-64 rounded-md shadow-md"></video>
+        <button id="capture-btn" class="bg-green-500 text-white px-3 py-1 rounded-md">Capture</button>
+        <canvas id="camera-canvas" class="hidden"></canvas>
+        <p id="ocr-status" class="text-sm text-gray-700"></p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2 mt-2">
+      <select id="subject" class="p-2 border rounded-md">
+        <option>Mathematics</option>
+        <option>Science</option>
+        <option>English</option>
+        <option>Social Studies</option>
+        <option>Computer Science</option>
+        <option>General</option>
+      </select>
+      <input type="text" id="title" placeholder="Title" class="p-2 border rounded-md">
+      <input type="file" id="file" class="p-2 border rounded-md">
+    </div>
+    <p class="text-red-500 text-sm mb-2">⚠️ File sending is not working right now. This feature will be available soon.</p>
+    <textarea id="details" placeholder="Describe your doubt..." class="w-full p-2 border rounded-md mb-2"></textarea>
+    <button class="bg-blue-600 text-white px-4 py-2 rounded-md" onclick="postDoubt()">Post Doubt</button>
+  </div>
+
+  <!-- Subject Tabs -->
+  <div class="flex flex-wrap gap-2 mb-2">
+    <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="all">All</button>
+    <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="Mathematics">Math</button>
+    <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="Science">Science</button>
+    <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="English">English</button>
+    <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="Social Studies">Social</button>
+    <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="Computer Science">CS</button>
+    <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="General">General</button>
+  </div>
+
+  <!-- Doubts List -->
+  <div id="doubt-list" class="mb-4"></div>
+
+  <!-- Chat Section -->
+  <div id="chat-section" class="hidden bg-white p-4 rounded-lg shadow-lg">
+    <h2 class="font-bold text-lg mb-2">💬 Chat</h2>
+    <div id="chat-box" class="max-h-64 overflow-y-auto mb-2 p-2 border rounded-md bg-gray-50"></div>
+    <div class="flex gap-2">
+      <input type="text" id="chat-message" placeholder="Type message..." class="flex-1 p-2 border rounded-md">
+      <input type="file" id="chat-file" class="p-2 border rounded-md">
+      <button id="send-btn" class="bg-blue-600 text-white px-3 py-1 rounded-md">Send</button>
     </div>
   </div>
-
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2 mt-2">
-    <select id="subject" class="p-2 border rounded-md">
-      <option>Mathematics</option>
-      <option>Science</option>
-      <option>English</option>
-      <option>Social Studies</option>
-      <option>Computer Science</option>
-      <option>General</option>
-    </select>
-    <input type="text" id="title" placeholder="Title" class="p-2 border rounded-md">
-    <input type="file" id="file" class="p-2 border rounded-md">
-  </div>
-  <p class="text-red-500 text-sm mb-2">⚠️ File sending is not working right now. This feature will be available soon.</p>
-  <textarea id="details" placeholder="Describe your doubt..." class="w-full p-2 border rounded-md mb-2"></textarea>
-  <button class="bg-blue-600 text-white px-4 py-2 rounded-md" onclick="postDoubt()">Post Doubt</button>
-</div>
-
-<!-- Subject Tabs -->
-<div class="flex flex-wrap gap-2 mb-2">
-  <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="all" onclick="setSubjectFilter('all')">All</button>
-  <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="Mathematics" onclick="setSubjectFilter('Mathematics')">Math</button>
-  <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="Science" onclick="setSubjectFilter('Science')">Science</button>
-  <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="English" onclick="setSubjectFilter('English')">English</button>
-  <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="Social Studies" onclick="setSubjectFilter('Social Studies')">Social</button>
-  <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="Computer Science" onclick="setSubjectFilter('Computer Science')">CS</button>
-  <button class="tab px-3 py-1 rounded-md bg-gray-200" data-key="General" onclick="setSubjectFilter('General')">General</button>
-</div>
-
-<!-- Doubts List -->
-<div id="doubt-list" class="mb-4"></div>
-
-<!-- Saved Doubts -->
-<div class="bg-white p-4 rounded-lg shadow-lg mb-4">
-  <h2 class="font-bold text-lg mb-2">Saved Doubts</h2>
-  <div id="saved-list"></div>
-</div>
-
-<!-- Chat Section -->
-<div id="chat-section" class="hidden bg-white p-4 rounded-lg shadow-lg">
-  <h2 class="font-bold text-lg mb-2">💬 Chat</h2>
-  <div id="chat-box" class="max-h-64 overflow-y-auto mb-2 p-2 border rounded-md bg-gray-50"></div>
-  <div class="flex gap-2">
-    <input type="text" id="chat-message" placeholder="Type message..." class="flex-1 p-2 border rounded-md">
-    <input type="file" id="chat-file" class="p-2 border rounded-md">
-    <button id="send-btn" class="bg-blue-600 text-white px-3 py-1 rounded-md">Send</button>
-  </div>
-</div>
 
 </div>
 </div>
