@@ -1,186 +1,327 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Solution! - Student Doubt Solver</title>
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solution! - Student Doubt Solver</title>
+<script src="https://cdn.tailwindcss.com"></script>
 
-    // ✅ Firebase Config
-    const firebaseConfig = {
-      apiKey: "AIzaSyD6hPxdAYnaT92xoqfKOnGZhV1AbzBHwyI",
-      authDomain: "solution-a0595.firebaseapp.com",
-      projectId: "solution-a0595",
-      storageBucket: "solution-a0595.appspot.com",
-      messagingSenderId: "38814647745",
-      appId: "1:38814647745:web:01e1f57baf2ae2a5265b40"
-    };
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, updateDoc, doc, serverTimestamp, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const storage = getStorage(app);
+// Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyD6hPxdAYnaT92xoqfKOnGZhV1AbzBHwyI",
+  authDomain: "solution-a0595.firebaseapp.com",
+  projectId: "solution-a0595",
+  storageBucket: "solution-a0595.appspot.com",
+  messagingSenderId: "38814647745",
+  appId: "1:38814647745:web:01e1f57baf2ae2a5265b40"
+};
 
-    let currentStudent = prompt("Enter your name:"); // temporary login with name
-    let activeChatId = null;
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const storage = getStorage(app);
 
-    // 🔹 Post Doubt with File
-    async function postDoubt() {
-      const subject = document.getElementById("subject").value;
-      const title = document.getElementById("title").value;
-      const details = document.getElementById("details").value;
-      const file = document.getElementById("file").files[0];
-      let fileURL = "";
+let activeChatId = null;
 
-      if (file) {
-        const storageRef = ref(storage, "doubts/" + Date.now() + "_" + file.name);
-        await uploadBytes(storageRef, file);
-        fileURL = await getDownloadURL(storageRef);
+function userDisplayName(user) {
+  if(!user) return "";
+  return user.displayName || (user.email||"").split("@")[0];
+}
+
+// Auth state change
+onAuthStateChanged(auth,user=>{
+  if(user){
+    document.getElementById("login-section").classList.add("hidden");
+    document.getElementById("main-section").classList.remove("hidden");
+    document.getElementById("welcome-name").textContent = userDisplayName(user);
+    loadDoubts();
+    loadSavedDoubts();
+  }else{
+    document.getElementById("login-section").classList.remove("hidden");
+    document.getElementById("main-section").classList.add("hidden");
+  }
+});
+
+// Signup
+window.signup=async function(){
+  const name=document.getElementById("signup-name").value.trim();
+  const email=document.getElementById("signup-email").value.trim();
+  const password=document.getElementById("signup-password").value;
+  if(!email||!password) return alert("Enter email and password");
+  try{
+    const cred=await createUserWithEmailAndPassword(auth,email,password);
+    if(name) await updateProfile(cred.user,{displayName:name});
+    alert("Signup successful!");
+  }catch(e){alert(e.message);}
+}
+
+// Login
+window.login=async function(){
+  const email=document.getElementById("login-email").value.trim();
+  const password=document.getElementById("login-password").value;
+  try{ await signInWithEmailAndPassword(auth,email,password);} 
+  catch(e){alert(e.message);}
+}
+
+// Logout
+window.logout=function(){signOut(auth);}
+
+// Post Doubt
+window.postDoubt=async function(){
+  const subject=document.getElementById("subject").value;
+  const title=document.getElementById("title").value.trim();
+  const details=document.getElementById("details").value.trim();
+  const file=document.getElementById("file").files[0];
+  if(!title||!details) return alert("Enter title and details");
+  if(!auth.currentUser) return alert("Login required");
+
+  let fileURL="", fileName="";
+  try{
+    if(file){
+      const storageRef=ref(storage,"doubts/"+Date.now()+"_"+file.name);
+      const snap=await uploadBytes(storageRef,file);
+      fileURL=await getDownloadURL(snap.ref);
+      fileName=file.name;
+    }
+    await addDoc(collection(db,"doubts"),{
+      subject, title, details, fileURL, fileName,
+      postedBy: userDisplayName(auth.currentUser),
+      created: serverTimestamp(),
+      solved:false
+    });
+    document.getElementById("title").value="";
+    document.getElementById("details").value="";
+    document.getElementById("file").value="";
+  }catch(e){alert("Error: "+e.message);}
+}
+
+// Mark as Solved
+window.markSolved=async function(id){
+  try{ await updateDoc(doc(db,"doubts",id),{solved:true}); }
+  catch(e){alert("Error: "+e.message);}
+}
+
+// Open Chat
+window.openChat=function(doubtId){
+  activeChatId=doubtId;
+  document.getElementById("chat-section").classList.remove("hidden");
+  document.getElementById("chat-box").innerHTML="";
+  loadChat(doubtId);
+  document.getElementById("send-btn").onclick=function(){sendMessage(doubtId);}
+}
+
+// Send Chat Message
+window.sendMessage=async function(doubtId){
+  const msg=document.getElementById("chat-message").value.trim();
+  const file=document.getElementById("chat-file").files[0];
+  if(!auth.currentUser) return alert("Login required");
+
+  let fileURL="", fileName="";
+  try{
+    if(file){
+      const storageRef=ref(storage,"chat/"+Date.now()+"_"+file.name);
+      const snap=await uploadBytes(storageRef,file);
+      fileURL=await getDownloadURL(snap.ref);
+      fileName=file.name;
+    }
+    if(!msg&&!fileURL) return;
+    await addDoc(collection(db,"doubts",doubtId,"chat"),{
+      name:userDisplayName(auth.currentUser),
+      message:msg,
+      fileURL,fileName,
+      created:serverTimestamp()
+    });
+    document.getElementById("chat-message").value="";
+    document.getElementById("chat-file").value="";
+  }catch(e){alert("Error: "+e.message);}
+}
+
+// Load Chat
+function loadChat(doubtId){
+  const qChat=query(collection(db,"doubts",doubtId,"chat"),orderBy("created","asc"));
+  onSnapshot(qChat,snapshot=>{
+    const chatBox=document.getElementById("chat-box");
+    chatBox.innerHTML="";
+    snapshot.forEach(docSnap=>{
+      const c=docSnap.data();
+      let fileHtml="";
+      if(c.fileURL){
+        const isImage=c.fileName&&/\.(jpg|jpeg|png|gif|webp)$/i.test(c.fileName);
+        if(isImage){
+          fileHtml=`<div class="mt-2"><a href="${c.fileURL}" target="_blank"><img src="${c.fileURL}" class="w-32 rounded-md shadow-md"></a><div class="text-xs text-gray-500">${c.fileName}</div></div>`;
+        }else{
+          fileHtml=`<div class="mt-1 text-xs"><a href="${c.fileURL}" target="_blank" class="text-blue-500 underline">📎 ${c.fileName}</a></div>`;
+        }
       }
+      const row=document.createElement("div");
+      row.className="mb-2 bg-gray-100 p-2 rounded-md shadow-sm";
+      row.innerHTML=`<div class="font-semibold">${c.name}</div><div>${c.message||""}</div>${fileHtml}`;
+      chatBox.appendChild(row);
+    });
+    chatBox.scrollTop=chatBox.scrollHeight;
+  });
+}
 
-      await addDoc(collection(db, "doubts"), {
-        subject,
-        title,
-        details,
-        fileURL,
-        postedBy: currentStudent,
-        created: new Date(),
-        solved: false
-      });
+// Load Doubts
+window.loadDoubts=function(){
+  const qD=query(collection(db,"doubts"),orderBy("created","desc"));
+  onSnapshot(qD,snapshot=>{
+    const list=document.getElementById("doubt-list");
+    list.innerHTML="";
+    snapshot.forEach(docSnap=>{
+      const d=docSnap.data();
+      const card=document.createElement("div");
+      card.setAttribute("data-subject",d.subject);
+      card.className="p-4 rounded-lg shadow-lg bg-white mb-4 relative";
+      const fileLink=d.fileURL?`<a href="${d.fileURL}" target="_blank" class="text-blue-600 underline">📎 ${d.fileName||'Attachment'}</a>`:"";
+      card.innerHTML=`
+        <div class="flex justify-between items-center mb-1">
+          <span class="font-bold uppercase text-sm text-gray-700">${d.subject}</span>
+          <span class="font-semibold">${d.title}</span>
+        </div>
+        <p class="text-gray-600">${d.details}</p>
+        ${fileLink}
+        <p class="text-xs text-gray-500 mt-1">Posted by: ${d.postedBy||"Student"}</p>
+        <div class="mt-2 flex gap-2">
+          ${d.solved?`<button class="px-3 py-1 bg-green-500 text-white rounded-md" onclick="openChat('${docSnap.id}')">💬 Open Chat</button>`:`<button class="px-3 py-1 bg-blue-600 text-white rounded-md" onclick="markSolved('${docSnap.id}')">✅ Mark as Solved</button>`}
+          <button class="px-3 py-1 bg-yellow-400 text-white rounded-md" onclick="saveDoubt('${docSnap.id}')">💾 Save</button>
+        </div>
+      `;
+      list.appendChild(card);
+    });
+  });
+}
 
-      alert("Doubt posted!");
-      document.getElementById("title").value = "";
-      document.getElementById("details").value = "";
-      document.getElementById("file").value = "";
-    }
+// Save / Bookmark Doubt
+window.saveDoubt=async function(doubtId){
+  if(!auth.currentUser) return alert("Login required");
+  try{
+    await setDoc(doc(db,"users",auth.currentUser.uid,"savedDoubts",doubtId),{saved:true});
+    alert("Saved!");
+    loadSavedDoubts();
+  }catch(e){alert("Error: "+e.message);}
+}
 
-    // 🔹 Load Doubts
-    function loadDoubts() {
-      const q = query(collection(db, "doubts"), orderBy("created", "desc"));
-      onSnapshot(q, (snapshot) => {
-        const list = document.getElementById("doubt-list");
-        list.innerHTML = "";
-        snapshot.forEach((docSnap) => {
-          const d = docSnap.data();
-          const div = document.createElement("div");
-          div.className = "doubt-card";
-          div.innerHTML = `
-            <h3>${d.subject} - ${d.title}</h3>
-            <p>${d.details}</p>
-            ${d.fileURL ? `<a href="${d.fileURL}" target="_blank">📎 View File</a><br>` : ""}
-            <p><small>Posted by: ${d.postedBy}</small></p>
-            ${d.solved 
-              ? `<button onclick="openChat('${docSnap.id}')">💬 Open Chat</button>` 
-              : `<button onclick="markSolved('${docSnap.id}')">✅ Mark as Solved</button>`}
-          `;
-          list.appendChild(div);
-        });
-      });
-    }
+// Load Saved Doubts
+window.loadSavedDoubts=async function(){
+  if(!auth.currentUser) return;
+  const qSaved=query(collection(db,"users",auth.currentUser.uid,"savedDoubts"));
+  onSnapshot(qSaved,snapshot=>{
+    const list=document.getElementById("saved-list");
+    list.innerHTML="";
+    snapshot.forEach(docSnap=>{
+      const card=document.createElement("div");
+      card.className="p-2 bg-gray-100 rounded-md mb-2 text-sm";
+      card.innerHTML=`Saved doubt ID: ${docSnap.id}`;
+      list.appendChild(card);
+    });
+  });
+}
 
-    // 🔹 Mark as Solved
-    async function markSolved(id) {
-      const docRef = doc(db, "doubts", id);
-      await updateDoc(docRef, { solved: true });
-    }
+// Subject filter
+window.setSubjectFilter=function(subjectKey){
+  const container=document.getElementById("doubt-list");
+  Array.from(container.children).forEach(card=>{
+    const s=card.getAttribute("data-subject");
+    card.style.display=(subjectKey=="all"||s==subjectKey)?"":"none";
+  });
+  document.querySelectorAll(".tab").forEach(btn=>btn.classList.remove("bg-blue-600","text-white"));
+  const btn=document.querySelector(`.tab[data-key="${subjectKey}"]`);
+  if(btn){ btn.classList.add("bg-blue-600","text-white"); }
+}
 
-    // 🔹 Open Chat
-    function openChat(id) {
-      activeChatId = id;
-      document.getElementById("chat-section").style.display = "block";
-      loadChat();
-    }
-
-    // 🔹 Send Message in Chat
-    async function sendMessage() {
-      const msg = document.getElementById("chat-message").value;
-      const file = document.getElementById("chat-file").files[0];
-      let fileURL = "";
-
-      if (file) {
-        const storageRef = ref(storage, "chat/" + Date.now() + "_" + file.name);
-        await uploadBytes(storageRef, file);
-        fileURL = await getDownloadURL(storageRef);
-      }
-
-      if (msg.trim() === "" && !fileURL) return;
-
-      await addDoc(collection(db, "doubts", activeChatId, "chat"), {
-        sender: currentStudent,
-        text: msg,
-        fileURL,
-        created: new Date()
-      });
-
-      document.getElementById("chat-message").value = "";
-      document.getElementById("chat-file").value = "";
-    }
-
-    // 🔹 Load Chat
-    function loadChat() {
-      if (!activeChatId) return;
-      const q = query(collection(db, "doubts", activeChatId, "chat"), orderBy("created"));
-      onSnapshot(q, (snapshot) => {
-        const chatBox = document.getElementById("chat-box");
-        chatBox.innerHTML = "";
-        snapshot.forEach((docSnap) => {
-          const c = docSnap.data();
-          const div = document.createElement("div");
-          div.className = "chat-msg";
-          div.innerHTML = `<b>${c.sender}:</b> ${c.text || ""} 
-            ${c.fileURL ? `<a href="${c.fileURL}" target="_blank">📎 File</a>` : ""}`;
-          chatBox.appendChild(div);
-        });
-        chatBox.scrollTop = chatBox.scrollHeight;
-      });
-    }
-
-    window.postDoubt = postDoubt;
-    window.loadDoubts = loadDoubts;
-    window.markSolved = markSolved;
-    window.openChat = openChat;
-    window.sendMessage = sendMessage;
-  </script>
-  <style>
-    body { font-family: Arial, sans-serif; background: #f9f9f9; margin: 0; padding: 0; }
-    .container { padding: 20px; }
-    .doubt-card { background: white; padding: 15px; margin: 10px 0; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-    button { padding: 8px 15px; margin-top: 5px; border: none; border-radius: 5px; background: #007bff; color: white; cursor: pointer; }
-    button:hover { background: #0056b3; }
-    #chat-section { margin-top: 20px; background: #fff; border-radius: 10px; padding: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); display:none; }
-    #chat-box { height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; background: #fdfdfd; }
-    .chat-msg { margin: 5px 0; }
-  </style>
+</script>
 </head>
-<body onload="loadDoubts()">
-  <div class="container">
-    <h2>Post a Doubt</h2>
-    <select id="subject">
-      <option>Mathematics</option>
-      <option>Science</option>
-      <option>English</option>
-      <option>Social Studies</option>
-      <option>Computer Science</option>
-      <option>General</option>
-    </select><br><br>
-    <input type="text" id="title" placeholder="Title" /><br><br>
-    <textarea id="details" placeholder="Describe the doubt"></textarea><br><br>
-    <input type="file" id="file" /><br><br>
-    <button onclick="postDoubt()">Post Doubt</button>
+<body class="bg-gradient-to-r from-indigo-200 via-purple-200 to-pink-200 min-h-screen">
+<header class="bg-white/70 backdrop-blur-md flex justify-between items-center p-4 shadow-md sticky top-0 z-50">
+  <div class="font-bold text-xl">🎓 Solution! - Student Doubt Solver</div>
+  <div class="flex items-center gap-3">
+    <span class="hidden md:inline">Welcome, <b id="welcome-name"></b></span>
+    <button class="px-3 py-1 bg-red-500 text-white rounded-md" onclick="logout()">Logout</button>
+  </div>
+</header>
 
-    <h2>All Doubts</h2>
+<div class="container mx-auto p-4">
+  <!-- Login / Signup -->
+  <div id="login-section" class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-6 rounded-lg shadow-lg">
+    <div>
+      <h2 class="text-lg font-bold mb-2">Login</h2>
+      <input type="email" id="login-email" placeholder="Email" class="w-full p-2 border rounded-md mb-2">
+      <input type="password" id="login-password" placeholder="Password" class="w-full p-2 border rounded-md mb-2">
+      <button class="bg-blue-600 text-white px-4 py-2 rounded-md" onclick="login()">Login</button>
+    </div>
+    <div>
+      <h2 class="text-lg font-bold mb-2">Signup</h2>
+      <input type="text" id="signup-name" placeholder="Full Name" class="w-full p-2 border rounded-md mb-2">
+      <input type="email" id="signup-email" placeholder="Email" class="w-full p-2 border rounded-md mb-2">
+      <input type="password" id="signup-password" placeholder="Password" class="w-full p-2 border rounded-md mb-2">
+      <button class="bg-green-500 text-white px-4 py-2 rounded-md" onclick="signup()">Create Account</button>
+    </div>
+  </div>
+
+  <!-- Main Section -->
+  <div id="main-section" class="hidden">
+
+    <!-- Post Doubt -->
+    <div class="bg-white p-4 rounded-lg shadow-lg mb-4">
+      <h2 class="font-bold text-lg mb-2">Post a Doubt</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+        <select id="subject" class="p-2 border rounded-md">
+          <option>Mathematics</option>
+          <option>Science</option>
+          <option>English</option>
+          <option>Social Studies</option>
+          <option>Computer Science</option>
+          <option>General</option>
+        </select>
+        <input type="text" id="title" placeholder="Title" class="p-2 border rounded-md">
+        <input type="file" id="file" class="p-2 border rounded-md">
+      </div>
+      <textarea id="details" placeholder="Describe your doubt..." class="w-full p-2 border rounded-md mb-2"></textarea>
+      <button class="bg-blue-600 text-white px-4 py-2 rounded-md" onclick="postDoubt()">Post Doubt</button>
+    </div>
+
+    <!-- Subject Tabs -->
+    <div class="mb-4">
+      <div class="flex flex-wrap gap-2">
+        <button class="tab bg-blue-600 text-white px-3 py-1 rounded-full" data-key="all" onclick="setSubjectFilter('all')">All</button>
+        <button class="tab px-3 py-1 rounded-full bg-white border" data-key="Mathematics" onclick="setSubjectFilter('Mathematics')">Mathematics</button>
+        <button class="tab px-3 py-1 rounded-full bg-white border" data-key="Science" onclick="setSubjectFilter('Science')">Science</button>
+        <button class="tab px-3 py-1 rounded-full bg-white border" data-key="English" onclick="setSubjectFilter('English')">English</button>
+        <button class="tab px-3 py-1 rounded-full bg-white border" data-key="Social Studies" onclick="setSubjectFilter('Social Studies')">Social Studies</button>
+        <button class="tab px-3 py-1 rounded-full bg-white border" data-key="Computer Science" onclick="setSubjectFilter('Computer Science')">Computer Science</button>
+        <button class="tab px-3 py-1 rounded-full bg-white border" data-key="General" onclick="setSubjectFilter('General')">General</button>
+      </div>
+    </div>
+
+    <!-- Doubts -->
     <div id="doubt-list"></div>
 
     <!-- Chat Section -->
-    <div id="chat-section">
-      <h3>Discussion Chat</h3>
-      <div id="chat-box"></div>
-      <input type="text" id="chat-message" placeholder="Type message..." />
-      <input type="file" id="chat-file" />
-      <button onclick="sendMessage()">Send</button>
+    <div id="chat-section" class="hidden bg-white p-4 rounded-lg shadow-lg mt-4">
+      <h2 class="font-bold text-lg mb-2">Discussion Chat</h2>
+      <div id="chat-box" class="h-64 overflow-y-auto border rounded-md p-2 mb-2 bg-gray-50"></div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+        <input type="text" id="chat-message" placeholder="Type message..." class="p-2 border rounded-md">
+        <input type="file" id="chat-file" class="p-2 border rounded-md">
+      </div>
+      <button id="send-btn" class="bg-green-500 text-white px-4 py-2 rounded-md">Send</button>
     </div>
+
+    <!-- Saved Doubts -->
+    <div class="mt-4 bg-white p-4 rounded-lg shadow-lg">
+      <h2 class="font-bold text-lg mb-2">My Saved Doubts</h2>
+      <div id="saved-list"></div>
+    </div>
+
   </div>
+</div>
 </body>
 </html>
