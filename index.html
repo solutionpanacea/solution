@@ -1,273 +1,333 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Solution! – Student Doubt Solver</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Solution! – Student Doubt Solver</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.1/dist/tesseract.min.js"></script>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-indigo-200 via-sky-200 to-emerald-200">
+<body class="min-h-screen bg-gradient-to-br from-blue-400 via-purple-400 to-indigo-400 p-4">
 
-  <!-- Top Bar -->
-  <header class="sticky top-0 z-30 bg-white/70 backdrop-blur border-b">
-    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-      <div class="text-xl font-extrabold tracking-tight">🎓 Solution! – Student Doubt Solver</div>
-      <div class="flex items-center gap-3">
-        <span id="whoami" class="hidden sm:inline text-sm text-gray-700"></span>
-        <button id="logoutBtn" class="hidden px-3 py-1.5 rounded-xl bg-rose-600 text-white hover:bg-rose-700">Logout</button>
+<div class="max-w-6xl mx-auto space-y-6">
+
+<!-- Header -->
+<header class="bg-white/80 backdrop-blur rounded-xl p-4 flex items-center justify-between">
+  <div class="text-xl font-bold">🎓 Solution! – Student Doubt Solver</div>
+  <div class="flex items-center gap-3">
+    <span id="whoami" class="hidden text-sm text-gray-700"></span>
+    <button id="logoutBtn" class="hidden px-3 py-1 rounded-lg bg-rose-600 text-white">Logout</button>
+  </div>
+</header>
+
+<!-- Auth Card -->
+<section id="authCard" class="bg-white rounded-2xl shadow p-5 max-w-xl mx-auto">
+  <div class="flex gap-2 justify-center mb-4">
+    <button id="tabLogin" class="px-4 py-2 rounded-xl bg-blue-600 text-white">Login</button>
+    <button id="tabSignup" class="px-4 py-2 rounded-xl bg-gray-200">Signup</button>
+  </div>
+
+  <form id="loginForm" class="space-y-3">
+    <input id="loginEmail" type="email" placeholder="you@example.com" class="w-full rounded-xl border px-3 py-2" />
+    <input id="loginPassword" type="password" placeholder="Password" class="w-full rounded-xl border px-3 py-2" />
+    <button class="w-full rounded-xl bg-blue-600 text-white py-2">Login</button>
+  </form>
+
+  <form id="signupForm" class="hidden space-y-3">
+    <input id="signupName" placeholder="Full name" class="w-full rounded-xl border px-3 py-2" />
+    <input id="signupEmail" type="email" placeholder="you@example.com" class="w-full rounded-xl border px-3 py-2" />
+    <input id="signupPassword" type="password" placeholder="Password" class="w-full rounded-xl border px-3 py-2" />
+    <button class="w-full rounded-xl bg-green-600 text-white py-2">Create account</button>
+  </form>
+
+  <p id="authStatus" class="text-sm text-center text-gray-600 mt-2"></p>
+</section>
+
+<!-- App -->
+<section id="app" class="hidden space-y-6">
+
+<div class="grid md:grid-cols-3 gap-6">
+
+  <!-- Compose -->
+  <div class="md:col-span-1 bg-white rounded-2xl shadow p-5 space-y-3">
+    <h3 class="font-bold text-lg">Post a doubt</h3>
+
+    <label class="block text-sm">Subject</label>
+    <select id="subject" class="w-full rounded-xl border px-3 py-2">
+      <option>Mathematics</option>
+      <option>Science</option>
+      <option>English</option>
+      <option>Social Studies</option>
+      <option>Computer Science</option>
+      <option>General</option>
+    </select>
+
+    <label class="block text-sm">Title</label>
+    <input id="title" class="w-full rounded-xl border px-3 py-2" placeholder="Short title" />
+
+    <label class="block text-sm">Details</label>
+    <textarea id="details" rows="4" class="w-full rounded-xl border px-3 py-2" placeholder="Describe your doubt"></textarea>
+
+    <!-- File attachment -->
+    <div>
+      <label class="block text-sm">Attachment (optional)</label>
+      <input id="file" type="file" class="w-full rounded-xl border px-3 py-2 bg-gray-50" />
+      <div class="text-xs text-gray-500 mt-1">Note: uploads show progress. Camera snapshots can be OCRed.</div>
+    </div>
+
+    <!-- Camera / Multi-page OCR -->
+    <div>
+      <div class="flex gap-2">
+        <button id="startCamera" class="flex-1 rounded-xl bg-indigo-600 text-white py-2">📷 Open Camera</button>
+        <button id="captureSnapshot" class="rounded-xl bg-yellow-500 text-white px-4 py-2 hidden">📸 Capture</button>
+      </div>
+
+      <video id="cameraPreview" class="hidden mt-3 w-full rounded-xl border" autoplay playsinline muted></video>
+      <canvas id="cameraCanvas" class="hidden"></canvas>
+
+      <div id="pagesArea" class="mt-3 space-y-2 hidden">
+        <div class="flex items-center gap-2">
+          <div class="flex-1">
+            <div id="thumbnails" class="flex gap-2 overflow-x-auto"></div>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button id="runOcrAll" class="flex-1 rounded-xl bg-purple-600 text-white py-2">Run OCR on all snapshots</button>
+          <button id="clearPages" class="rounded-xl bg-gray-200 px-4 py-2">Clear</button>
+        </div>
+      </div>
+
+      <div class="mt-3">
+        <label class="block text-sm">OCR output</label>
+        <textarea id="ocrOutput" rows="4" class="w-full rounded-xl border px-3 py-2" placeholder="OCR results will appear here"></textarea>
+        <div class="flex items-center gap-2 mt-2">
+          <button id="copyOCR" class="rounded-xl bg-green-600 text-white px-4 py-2">Copy</button>
+          <div class="flex-1">
+            <div id="ocrProgressWrap" class="w-full bg-gray-200 rounded h-3 overflow-hidden hidden">
+              <div id="ocrProgress" class="h-3 bg-amber-500 w-0"></div>
+            </div>
+          </div>
+        </div>
+        <p id="ocrStatus" class="text-xs text-gray-600 mt-1"></p>
       </div>
     </div>
-  </header>
 
-  <main class="max-w-6xl mx-auto px-4 py-6">
-
-    <!-- AUTH CARD -->
-    <section id="authCard" class="max-w-xl mx-auto bg-white rounded-2xl shadow-xl p-6">
-      <div class="flex justify-center gap-2 mb-6">
-        <button id="tabLogin" class="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold">Login</button>
-        <button id="tabSignup" class="px-4 py-2 rounded-xl bg-gray-200 text-gray-800">Signup</button>
+    <div class="mt-2">
+      <div id="uploadProgressWrap" class="w-full bg-gray-200 rounded h-3 overflow-hidden hidden">
+        <div id="uploadProgress" class="h-3 bg-blue-600 w-0"></div>
       </div>
+      <p id="uploadStatus" class="text-xs text-gray-600 mt-1"></p>
+    </div>
 
-      <!-- Login -->
-      <form id="loginForm" class="space-y-4">
-        <div>
-          <label for="loginEmail" class="block text-sm font-medium text-gray-700">Email</label>
-          <input id="loginEmail" type="email" required class="mt-1 w-full rounded-xl border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="you@example.com" />
-        </div>
-        <div>
-          <label for="loginPassword" class="block text-sm font-medium text-gray-700">Password</label>
-          <input id="loginPassword" type="password" required class="mt-1 w-full rounded-xl border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="••••••••" />
-        </div>
-        <button class="w-full rounded-xl bg-blue-600 text-white py-2 font-semibold hover:bg-blue-700">Login</button>
-      </form>
+    <button id="postBtn" class="w-full rounded-xl bg-blue-600 text-white py-2">Post Doubt</button>
+    <p id="postStatus" class="text-sm text-gray-600 mt-2"></p>
+  </div>
 
-      <!-- Signup -->
-      <form id="signupForm" class="hidden space-y-4">
-        <div>
-          <label for="signupName" class="block text-sm font-medium text-gray-700">Full name</label>
-          <input id="signupName" type="text" class="mt-1 w-full rounded-xl border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="Student name" />
-        </div>
-        <div>
-          <label for="signupEmail" class="block text-sm font-medium text-gray-700">Email</label>
-          <input id="signupEmail" type="email" required class="mt-1 w-full rounded-xl border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="you@example.com" />
-        </div>
-        <div>
-          <label for="signupPassword" class="block text-sm font-medium text-gray-700">Password</label>
-          <input id="signupPassword" type="password" required class="mt-1 w-full rounded-xl border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="Minimum 6 characters" />
-        </div>
-        <button class="w-full rounded-xl bg-green-600 text-white py-2 font-semibold hover:bg-green-700">Create account</button>
-      </form>
+  <!-- Doubt list -->
+  <div class="md:col-span-2 bg-white rounded-2xl shadow p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-bold text-lg">All doubts (realtime)</h3>
+      <select id="filterSubject" class="rounded-xl border px-3 py-2">
+        <option value="All">All subjects</option>
+        <option>Mathematics</option>
+        <option>Science</option>
+        <option>English</option>
+        <option>Social Studies</option>
+        <option>Computer Science</option>
+        <option>General</option>
+      </select>
+    </div>
+    <div id="doubtList" class="space-y-3"></div>
+  </div>
+</div>
 
-      <p id="authStatus" class="mt-4 text-center text-sm text-gray-600"></p>
+<!-- Chat -->
+<div id="chatPanel" class="hidden bg-white rounded-2xl shadow p-5">
+  <div class="flex justify-between items-center mb-2">
+    <h4 class="font-semibold">💬 Chat</h4>
+    <button id="closeChat" class="rounded bg-gray-200 px-3 py-1">Close</button>
+  </div>
+  <div id="chatBox" class="h-64 overflow-y-auto border rounded p-3 bg-gray-50 mb-3"></div>
+  <div class="flex gap-2">
+    <input id="chatMsg" class="flex-1 rounded-xl border px-3 py-2" placeholder="Type a message…" />
+    <input id="chatFile" type="file" class="rounded-xl border px-3 py-2" />
+    <button id="sendChat" class="rounded-xl bg-blue-600 text-white px-4 py-2">Send</button>
+  </div>
+  <p id="chatStatus" class="text-sm text-gray-600 mt-2"></p>
+</div>
+</div>
 
-      <div class="mt-6 p-3 border border-amber-400 bg-amber-50 rounded-xl text-sm text-amber-800">
-        ⚠️ Add <code class="px-1 bg-white rounded">solutionpanacea.github.io</code> in Firebase Console → Authentication → Settings → <b>Authorized domains</b>.
-      </div>
-    </section>
+<!-- Firebase + Full Logic -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
-    <!-- APP -->
-    <section id="app" class="hidden">
-      <!-- Compose + List -->
-      <div class="grid md:grid-cols-3 gap-6 mt-4">
-        <!-- Post Doubt -->
-        <div class="md:col-span-1 bg-white rounded-2xl shadow-xl p-5">
-          <h3 class="text-lg font-bold mb-3">Post a doubt</h3>
+// --- Firebase Config ---
+const firebaseConfig = {
+  apiKey: "AIzaSyD6hPxdAYnaT92xoqfKOnGZhV1AbzBHwyI",
+  authDomain: "solution-a0595.firebaseapp.com",
+  projectId: "solution-a0595",
+  storageBucket: "solution-a0595.appspot.com",
+  messagingSenderId: "38814647745",
+  appId: "1:38814647745:web:5d58411c5d074e63265b40"
+};
 
-          <div class="mb-2">
-            <label class="block text-sm font-medium">Subject</label>
-            <select id="subject" class="mt-1 w-full rounded-xl border px-3 py-2">
-              <option>Mathematics</option>
-              <option>Science</option>
-              <option>English</option>
-              <option>Social Studies</option>
-              <option>Computer Science</option>
-              <option>General</option>
-            </select>
-          </div>
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const storage = getStorage(app);
 
-          <div class="mb-2">
-            <label for="title" class="block text-sm font-medium">Title</label>
-            <input id="title" class="mt-1 w-full rounded-xl border px-3 py-2" placeholder="Short title" />
-          </div>
+// --- Auth Handling ---
+const authCard = document.getElementById("authCard");
+const appSection = document.getElementById("app");
+const whoami = document.getElementById("whoami");
+const logoutBtn = document.getElementById("logoutBtn");
 
-          <div class="mb-2">
-            <label for="details" class="block text-sm font-medium">Details</label>
-            <textarea id="details" class="mt-1 w-full rounded-xl border px-3 py-2" rows="5" placeholder="Describe your doubt"></textarea>
-          </div>
+const loginForm = document.getElementById("loginForm");
+const signupForm = document.getElementById("signupForm");
+const tabLogin = document.getElementById("tabLogin");
+const tabSignup = document.getElementById("tabSignup");
+const authStatus = document.getElementById("authStatus");
 
-          <div class="mb-3">
-            <label for="file" class="block text-sm font-medium">Attachment (optional)</label>
-            <input id="file" type="file" class="mt-1 w-full rounded-xl border px-3 py-2 bg-gray-50" />
-          </div>
+const loginEmail=document.getElementById("loginEmail");
+const loginPassword=document.getElementById("loginPassword");
+const signupEmail=document.getElementById("signupEmail");
+const signupPassword=document.getElementById("signupPassword");
+const signupName=document.getElementById("signupName");
 
-          <!-- Camera + OCR + Copy -->
-          <div class="mb-3">
-            <button id="cameraBtn" class="w-full rounded-xl bg-indigo-600 text-white py-2 font-semibold hover:bg-indigo-700">📷 Capture Photo & Convert Text</button>
-            <video id="cameraPreview" class="hidden mt-2 w-full rounded-xl border" autoplay></video>
-            <canvas id="cameraCanvas" class="hidden"></canvas>
-            <div class="mt-2 flex items-center gap-2">
-              <textarea id="ocrOutput" class="flex-1 w-full rounded-xl border px-3 py-2" rows="5" placeholder="Extracted text will appear here"></textarea>
-              <button id="copyOCR" class="rounded-xl bg-green-600 text-white px-4 py-2 font-semibold hover:bg-green-700">Copy</button>
-            </div>
-            <p class="text-xs text-gray-500 mt-1">Note: OCR may not work perfectly for all images.</p>
-          </div>
+tabLogin.onclick = () => { loginForm.classList.remove("hidden"); signupForm.classList.add("hidden"); tabLogin.classList.add("bg-blue-600","text-white"); tabSignup.classList.remove("bg-blue-600","text-white"); tabSignup.classList.add("bg-gray-200"); };
+tabSignup.onclick = () => { signupForm.classList.remove("hidden"); loginForm.classList.add("hidden"); tabSignup.classList.add("bg-green-600","text-white"); tabLogin.classList.remove("bg-blue-600","text-white"); tabLogin.classList.add("bg-gray-200"); };
 
-          <button id="postBtn" class="w-full rounded-xl bg-blue-600 text-white py-2 font-semibold hover:bg-blue-700">Post Doubt</button>
-          <p id="postStatus" class="mt-3 text-sm text-gray-600"></p>
-        </div>
+// Login
+loginForm.onsubmit = async e => {
+  e.preventDefault();
+  authStatus.textContent = "Logging in...";
+  try { await signInWithEmailAndPassword(auth, loginEmail.value, loginPassword.value); authStatus.textContent = ""; }
+  catch(err){ authStatus.textContent = err.message; }
+};
 
-        <!-- Doubts List -->
-        <div class="md:col-span-2 bg-white rounded-2xl shadow-xl p-5">
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-lg font-bold">All doubts (realtime)</h3>
-            <select id="filterSubject" class="rounded-xl border px-3 py-1.5">
-              <option value="All">All subjects</option>
-              <option>Mathematics</option>
-              <option>Science</option>
-              <option>English</option>
-              <option>Social Studies</option>
-              <option>Computer Science</option>
-              <option>General</option>
-            </select>
-          </div>
-          <div id="doubtList" class="space-y-3"></div>
-        </div>
-      </div>
+// Signup
+signupForm.onsubmit = async e => {
+  e.preventDefault();
+  authStatus.textContent = "Creating account...";
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, signupEmail.value, signupPassword.value);
+    await updateProfile(cred.user, { displayName: signupName.value });
+    authStatus.textContent = "Account created!";
+  } catch(err){ authStatus.textContent = err.message; }
+};
 
-      <!-- Chat -->
-      <div id="chatPanel" class="hidden mt-6 bg-white rounded-2xl shadow-xl p-5">
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="text-lg font-bold">💬 Chat</h3>
-          <button id="closeChat" class="px-3 py-1 rounded-lg bg-gray-200 hover:bg-gray-300">Close</button>
-        </div>
-        <div id="chatBox" class="h-64 overflow-y-auto border rounded-xl p-3 bg-gray-50 mb-3"></div>
-        <div class="flex gap-2">
-          <input id="chatMsg" class="flex-1 rounded-xl border px-3 py-2" placeholder="Type a message…" />
-          <input id="chatFile" type="file" class="rounded-xl border px-3 py-2 bg-gray-50" />
-          <button id="sendChat" class="rounded-xl bg-blue-600 text-white px-4 py-2 font-semibold hover:bg-blue-700">Send</button>
-        </div>
-        <p id="chatStatus" class="mt-2 text-sm text-gray-600"></p>
-      </div>
-    </section>
-  </main>
+// Logout
+logoutBtn.onclick = async () => { await signOut(auth); };
 
-  <!-- Firebase + App Logic -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-    import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, serverTimestamp, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+// --- Auth State ---
+onAuthStateChanged(auth, user => {
+  if(user){
+    authCard.classList.add("hidden"); appSection.classList.remove("hidden");
+    whoami.textContent=user.displayName||user.email; whoami.classList.remove("hidden"); logoutBtn.classList.remove("hidden");
+    initRealtimeDoubts(); initChatListener();
+  } else { authCard.classList.remove("hidden"); appSection.classList.add("hidden"); whoami.classList.add("hidden"); logoutBtn.classList.add("hidden"); }
+});
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyD6hPxdAYnaT92xoqfKOnGZhV1AbzBHwyI",
-      authDomain: "solution-a0595.firebaseapp.com",
-      projectId: "solution-a0595",
-      storageBucket: "solution-a0595.appspot.com",
-      messagingSenderId: "38814647745",
-      appId: "1:38814647745:web:01e1f57baf2ae2a5265b40"
-    };
+// --- Post Doubt ---
+const postBtn = document.getElementById("postBtn");
+const uploadProgressWrap = document.getElementById("uploadProgressWrap");
+const uploadProgress = document.getElementById("uploadProgress");
+const uploadStatus = document.getElementById("uploadStatus");
+const fileInput = document.getElementById("file");
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const storage = getStorage(app);
-
-    const $ = (id) => document.getElementById(id);
-    const show = (el) => el.classList.remove("hidden");
-    const hide = (el) => el.classList.add("hidden");
-    const toast = (el,msg,ok=false)=>{ el.textContent=msg; el.classList.toggle("text-green-700",ok); el.classList.toggle("text-rose-700",!ok); }
-    const displayName = (u)=>u.displayName||(u.email||"").split("@")[0];
-
-    const tabLogin=$("tabLogin"), tabSignup=$("tabSignup"), loginForm=$("loginForm"), signupForm=$("signupForm");
-    tabLogin.onclick=()=>{ tabLogin.className="px-4 py-2 rounded-xl bg-blue-600 text-white font-semibold"; tabSignup.className="px-4 py-2 rounded-xl bg-gray-200 text-gray-800"; show(loginForm); hide(signupForm); };
-    tabSignup.onclick=()=>{ tabSignup.className="px-4 py-2 rounded-xl bg-green-600 text-white font-semibold"; tabLogin.className="px-4 py-2 rounded-xl bg-gray-200 text-gray-800"; show(signupForm); hide(loginForm); };
-
-    loginForm.addEventListener("submit", async (e)=>{ e.preventDefault(); try{ await signInWithEmailAndPassword(auth,$("loginEmail").value.trim(),$("loginPassword").value); toast($("authStatus"),"✅ Login successful",true); }catch(err){ toast($("authStatus"),"❌ "+err.message); } });
-    signupForm.addEventListener("submit", async (e)=>{ e.preventDefault(); try{ const cred=await createUserWithEmailAndPassword(auth,$("signupEmail").value.trim(),$("signupPassword").value); const name=$("signupName").value.trim(); if(name) await updateProfile(cred.user,{displayName:name}); toast($("authStatus"),"✅ Account created. You are logged in.",true); }catch(err){ toast($("authStatus"),"❌ "+err.message); } });
-
-    $("logoutBtn").onclick=()=>signOut(auth);
-
-    onAuthStateChanged(auth,(user)=>{
-      if(user){ hide($("authCard")); show($("app")); $("whoami").textContent="Signed in as "+displayName(user); show($("whoami")); show($("logoutBtn")); startDoubtsFeed(); }
-      else{ show($("authCard")); hide($("app")); $("authStatus").textContent=""; hide($("logoutBtn")); hide($("whoami")); stopChatListener(); }
+postBtn.onclick = async () => {
+  const subject=document.getElementById("subject").value;
+  const title=document.getElementById("title").value;
+  const details=document.getElementById("details").value;
+  let fileURL="";
+  if(fileInput.files.length>0){
+    uploadProgressWrap.classList.remove("hidden");
+    const file=fileInput.files[0];
+    const storageRef=ref(storage,`attachments/${Date.now()}_${file.name}`);
+    const uploadTask=uploadBytesResumable(storageRef,file);
+    uploadTask.on("state_changed",snapshot=>{
+      const progress=(snapshot.bytesTransferred/snapshot.totalBytes)*100;
+      uploadProgress.style.width=progress+"%";
     });
+    await new Promise((res,rej)=>uploadTask.then(async snap=>{fileURL=await getDownloadURL(snap.ref); res();}).catch(rej));
+    uploadProgressWrap.classList.add("hidden");
+  }
+  await addDoc(collection(db,"doubts"),{subject,title,details,file:fileURL,uid:auth.currentUser.uid,name:auth.currentUser.displayName||auth.currentUser.email,timestamp:serverTimestamp()});
+  document.getElementById("title").value=""; document.getElementById("details").value=""; fileInput.value="";
+  uploadStatus.textContent="Posted successfully!";
+};
 
-    $("postBtn").onclick=async ()=>{
-      const user=auth.currentUser; if(!user) return toast($("postStatus"),"Please login first");
-      const subject=$("subject").value, title=$("title").value.trim(), details=$("details").value.trim(), file=$("file").files[0];
-      if(!title||!details) return toast($("postStatus"),"Title and details required");
-      try{
-        let fileURL="", fileName="";
-        if(file){ const path=`doubts/${user.uid}/${Date.now()}_${file.name}`; const snap=await uploadBytes(ref(storage,path),file); fileURL=await getDownloadURL(snap.ref); fileName=file.name; }
-        await addDoc(collection(db,"doubts"),{subject,title,details,fileURL,fileName,postedBy:displayName(user),uid:user.uid,created:serverTimestamp(),solved:false});
-        $("title").value=""; $("details").value=""; $("file").value=""; toast($("postStatus"),"✅ Doubt posted",true);
-      }catch(err){ toast($("postStatus"),"❌ "+err.message); }
-    };
+// --- Realtime Doubts ---
+const doubtList=document.getElementById("doubtList");
+function initRealtimeDoubts(){
+  const q=query(collection(db,"doubts"),orderBy("timestamp","desc"));
+  onSnapshot(q,snap=>{doubtList.innerHTML=""; snap.forEach(docSnap=>{
+    const data=docSnap.data();
+    const div=document.createElement("div");
+    div.className="border rounded p-3 bg-gray-50";
+    div.innerHTML=`<div class="font-bold">${data.title} (${data.subject})</div><div class="text-sm">${data.details}</div>${data.file?`<div><a href="${data.file}" target="_blank" class="text-blue-600 underline">Attachment</a></div>`:""}<div class="text-xs text-gray-600 mt-1">By: ${data.name}</div>`;
+    doubtList.appendChild(div);
+  });});
+}
 
-    let doubtsUnsub=null;
-    function startDoubtsFeed(){
-      if(doubtsUnsub) doubtsUnsub();
-      const q=query(collection(db,"doubts"),orderBy("created","desc"));
-      doubtsUnsub=onSnapshot(q,(snap)=>{
-        const list=$("doubtList"); list.innerHTML=""; const filter=$("filterSubject").value;
-        snap.forEach(docSnap=>{
-          const d=docSnap.data(); if(filter!=="All"&&d.subject!==filter) return;
-          const card=document.createElement("div"); card.className="p-4 rounded-xl border shadow-sm";
-          const fileLink=d.fileURL?(/\.(png|jpe?g|gif|webp)$/i.test(d.fileName||"")? `<a href="${d.fileURL}" target="_blank"><img src="${d.fileURL}" class="mt-2 w-40 rounded-lg shadow"></a><div class="text-xs text-gray-500">${d.fileName}</div>`:`<a class="text-blue-600 underline" href="${d.fileURL}" target="_blank">📎 ${d.fileName||"Attachment"}</a>`):"";
-          card.innerHTML=`<div class="flex items-center justify-between"><div class="text-sm font-semibold text-gray-700 uppercase">${d.subject||""}</div><div class="text-xs text-gray-500">${d.created?.toDate?d.created.toDate().toLocaleString():""}</div></div>
-            <div class="mt-1 text-lg font-bold">${d.title||""}</div>
-            <div class="mt-1 text-gray-700 whitespace-pre-wrap">${d.details||""}</div>${fileLink?`<div class="mt-2">${fileLink}</div>`:""}
-            <div class="mt-2 flex items-center justify-between"><div class="text-xs text-gray-500">Posted by: ${d.postedBy||"Student"}</div><div class="flex gap-2">${d.solved?`<button class="px-3 py-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700" data-open="${docSnap.id}">💬 Open Chat</button>`:`<button class="px-3 py-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700" data-solved="${docSnap.id}">✅ Mark as solved</button><button class="px-3 py-1 rounded-lg bg-gray-800 text-white hover:bg-black" data-open="${docSnap.id}">💬 Open Chat</button>`}</div></div>`;
-          card.querySelectorAll("[data-solved]").forEach(btn=>{ btn.onclick=async ()=>{ try{ await updateDoc(doc(db,"doubts",btn.dataset.solved),{solved:true}); }catch(e){ alert(e.message); } }; });
-          card.querySelectorAll("[data-open]").forEach(btn=>{ btn.onclick=()=> openChat(btn.dataset.open,d.title||"Chat"); });
-          list.appendChild(card);
-        });
-      });
-    }
-    $("filterSubject").onchange=startDoubtsFeed;
+// --- Chat ---
+const chatPanel=document.getElementById("chatPanel");
+const chatBox=document.getElementById("chatBox");
+const sendChat=document.getElementById("sendChat");
+const chatMsg=document.getElementById("chatMsg");
+function initChatListener(){ chatPanel.classList.remove("hidden"); const q=query(collection(db,"chat"),orderBy("timestamp","asc")); onSnapshot(q,snap=>{ chatBox.innerHTML=""; snap.forEach(docSnap=>{ const data=docSnap.data(); const div=document.createElement("div"); div.className="mb-1"; div.innerHTML=`<span class="font-bold">${data.name}:</span> ${data.msg}`; chatBox.appendChild(div); }); chatBox.scrollTop=chatBox.scrollHeight;}); }
+sendChat.onclick=async()=>{ if(chatMsg.value.trim()==="") return; await addDoc(collection(db,"chat"),{msg:chatMsg.value.trim(),name:auth.currentUser.displayName||auth.currentUser.email,timestamp:serverTimestamp()}); chatMsg.value=""; };
 
-    let chatUnsub=null,currentChatId=null;
-    function stopChatListener(){ if(chatUnsub) chatUnsub(); chatUnsub=null; }
-    function openChat(doubtId,title){
-      currentChatId=doubtId; stopChatListener(); $("chatBox").innerHTML=""; $("chatStatus").textContent=""; show($("chatPanel"));
-      const q=query(collection(db,"doubts",doubtId,"messages"),orderBy("created","asc"));
-      chatUnsub=onSnapshot(q,(snap)=>{
-        const box=$("chatBox"); box.innerHTML="";
-        snap.forEach(m=>{ const c=m.data(); const wrap=document.createElement("div"); wrap.className="mb-2 rounded-xl bg-gray-100 p-2"; let fileHtml=""; if(c.fileURL){ fileHtml=(/\.(png|jpe?g|gif|webp)$/i.test(c.fileName||""))? `<div class="mt-1"><a href="${c.fileURL}" target="_blank"><img src="${c.fileURL}" class="w-32 rounded-lg shadow"></a><div class="text-xs text-gray-500">${c.fileName}</div></div>`:`<div class="mt-1 text-xs"><a class="text-blue-600 underline" target="_blank" href="${c.fileURL}">📎 ${c.fileName||"attachment"}</a></div>`; } wrap.innerHTML=`<div class="text-sm font-semibold">${c.name||"Student"}</div><div>${c.message||""}</div>${fileHtml}`; box.appendChild(wrap); });
-        $("chatBox").scrollTop=$("chatBox").scrollHeight;
-      });
-    }
-    $("closeChat").onclick=()=>{ stopChatListener(); hide($("chatPanel")); currentChatId=null; };
-    $("sendChat").onclick=async ()=>{
-      const user=auth.currentUser; if(!user) return toast($("chatStatus"),"Login required"); if(!currentChatId) return;
-      const msg=$("chatMsg").value.trim(), file=$("chatFile").files[0]; if(!msg&&!file) return;
-      try{
-        let fileURL="", fileName="";
-        if(file){ const path=`chat/${user.uid}/${Date.now()}_${file.name}`; const snap=await uploadBytes(ref(storage,path),file); fileURL=await getDownloadURL(snap.ref); fileName=file.name; }
-        await addDoc(collection(db,"doubts",currentChatId,"messages"),{name:displayName(user),uid:user.uid,message:msg,fileURL,fileName,created:serverTimestamp()});
-        $("chatMsg").value=""; $("chatFile").value=""; toast($("chatStatus"),"Sent",true); setTimeout(()=>$("chatStatus").textContent="",800);
-      }catch(err){ toast($("chatStatus"),"❌ "+err.message); }
-    };
+// --- Camera OCR ---
+const startCamera=document.getElementById("startCamera");
+const captureSnapshot=document.getElementById("captureSnapshot");
+const cameraPreview=document.getElementById("cameraPreview");
+const cameraCanvas=document.getElementById("cameraCanvas");
+const pagesArea=document.getElementById("pagesArea");
+const thumbnails=document.getElementById("thumbnails");
+const runOcrAll=document.getElementById("runOcrAll");
+const clearPages=document.getElementById("clearPages");
+const ocrOutput=document.getElementById("ocrOutput");
+const ocrProgressWrap=document.getElementById("ocrProgressWrap");
+const ocrProgress=document.getElementById("ocrProgress");
+const ocrStatus=document.getElementById("ocrStatus");
+let cameraStream=null;
+let snapshots=[];
 
-    // --- Camera + OCR + Copy ---
-    const cameraBtn=$("cameraBtn"), video=$("cameraPreview"), canvas=$("cameraCanvas"), ocrOutput=$("ocrOutput"), copyOCR=$("copyOCR");
-    let stream=null;
+startCamera.onclick=async()=>{
+  if(navigator.mediaDevices?.getUserMedia){
+    cameraStream=await navigator.mediaDevices.getUserMedia({video:true});
+    cameraPreview.srcObject=cameraStream; cameraPreview.classList.remove("hidden");
+    captureSnapshot.classList.remove("hidden"); pagesArea.classList.remove("hidden");
+  } else { alert("Camera not supported"); }
+};
 
-    cameraBtn.onclick=async ()=>{
-      try{
-        if(!stream){ stream=await navigator.mediaDevices.getUserMedia({video:true}); video.srcObject=stream; show(video); }
-        const ctx=canvas.getContext("2d"); canvas.width=video.videoWidth; canvas.height=video.videoHeight;
-        ctx.drawImage(video,0,0,canvas.width,canvas.height);
-        const dataURL=canvas.toDataURL("image/png");
-        toast($("postStatus"),"Extracting text from image…");
-        const result=await Tesseract.recognize(dataURL,"eng",{logger:m=>console.log(m)});
-        ocrOutput.value=result.data.text; $("details").value=result.data.text;
-        toast($("postStatus"),"✅ Text extracted from image",true);
-      }catch(e){ toast($("postStatus"),"❌ Camera/OCR error"); console.error(e); }
-    };
+captureSnapshot.onclick=()=>{
+  const canvas=cameraCanvas; const ctx=canvas.getContext("2d");
+  canvas.width=cameraPreview.videoWidth; canvas.height=cameraPreview.videoHeight;
+  ctx.drawImage(cameraPreview,0,0,canvas.width,canvas.height);
+  const dataUrl=canvas.toDataURL("image/jpeg",0.8);
+  snapshots.push(dataUrl);
+  const thumb=document.createElement("img");
+  thumb.src=dataUrl; thumb.className="h-24 rounded border"; thumbnails.appendChild(thumb);
+};
 
-    copyOCR.onclick=()=>{ ocrOutput.select(); ocrOutput.setSelectionRange(0,99999); document.execCommand("copy"); toast($("postStatus"),"📋 Text copied to clipboard",true); };
-  </script>
+runOcrAll.onclick=async()=>{
+  ocrOutput.value=""; ocrProgressWrap.classList.remove("hidden"); ocrProgress.style.width="0%"; ocrStatus.textContent="Processing OCR...";
+  for(let i=0;i<snapshots.length;i++){
+    const res=await Tesseract.recognize(snapshots[i],"eng",{logger:m=>{ if(m.status==="recognizing text") ocrProgress.style.width=((i+m.progress)/snapshots.length*100)+"%"; }});
+    ocrOutput.value+=res.data.text+"\n\n";
+  }
+  ocrStatus.textContent="OCR Completed"; ocrProgressWrap.classList.add("hidden");
+};
+
+clearPages.onclick=()=>{ snapshots=[]; thumbnails.innerHTML=""; ocrOutput.value=""; };
+
+document.getElementById("copyOCR").onclick=()=>{ navigator.clipboard.writeText(ocrOutput.value); };
+
+</script>
 </body>
 </html>
